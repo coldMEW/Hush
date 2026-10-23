@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A missing permission or app: what it is, why it is needed, and a button to fix it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="72dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="20dp"
+    android:paddingVertical="12dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView android:id="@+id/title" style="@style/RowTitle" />
+
+        <TextView android:id="@+id/desc" style="@style/RowSummary" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/action"
+        style="@style/FilledButton"
+        android:layout_marginStart="16dp" />
+
+    <TextView
+        android:id="@+id/done"
+        style="@style/Text.Body"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="@string/sz_step_done"
+        android:textColor="@color/good"
+        android:visibility="gone" />
+</LinearLayout>

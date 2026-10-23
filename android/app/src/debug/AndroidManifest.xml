@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: lets adb start a test skip or a sleep timer in any screen state, e.g.
+     adb shell am broadcast -n io.coldmew.hush.debug/io.coldmew.hush.DebugReceiver -a io.coldmew.hush.TEST_SKIP -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- debug only: lets adb open the setup screen for testing -->
+        <activity
+            android:name=".ShizukuSetupActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+        <receiver
+            android:name=".DebugReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="io.coldmew.hush.TEST_SKIP" />
+                <action android:name="io.coldmew.hush.TEST_SLEEP" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

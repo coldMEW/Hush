@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keeps row ripples inside the rounded card corners. -->
+    <style name="Card" parent="CardBase">
+        <item name="android:clipToOutline">true</item>
+    </style>
+</resources>

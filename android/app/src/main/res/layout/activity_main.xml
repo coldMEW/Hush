@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="32dp">
+
+        <!-- App bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/hush_logo" />
+
+            <TextView
+                style="@style/Text.AppTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:accessibilityHeading="true"
+                tools:targetApi="28"
+                android:text="@string/app_name" />
+        </LinearLayout>
+
+        <!-- Status: master switch plus the state of each part -->
+        <LinearLayout style="@style/Card">
+
+            <LinearLayout
+                android:id="@+id/master_row"
+                style="@style/Row"
+                android:background="@null"
+                android:minHeight="104dp"
+                android:paddingVertical="20dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/status_title"
+                        style="@style/Text.Headline"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/status_desc"
+                        style="@style/Text.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/power"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@drawable/bg_power_off"
+                    android:contentDescription="@string/power_turn_on"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_power" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/status_details"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingBottom="12dp">
+
+                <View
+                    style="@style/Divider"
+                    android:layout_marginHorizontal="0dp"
+                    android:layout_marginBottom="8dp" />
+
+                <include android:id="@+id/st_detect" layout="@layout/row_status" />
+
+                <include android:id="@+id/st_skip" layout="@layout/row_status" />
+
+                <include android:id="@+id/st_dns" layout="@layout/row_status" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Setup: only shown while something is missing -->
+        <LinearLayout
+            android:id="@+id/setup_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout style="@style/SectionBar">
+                <TextView style="@style/Text.Section" android:text="@string/section_setup" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/setup_list" style="@style/Card" android:orientation="vertical" />
+        </LinearLayout>
+
+        <!-- Statistics -->
+        <LinearLayout style="@style/SectionBar">
+
+            <TextView style="@style/Text.Section" android:text="@string/section_stats" />
+
+            <TextView
+                android:id="@+id/stats_reset"
+                style="@style/TextButton"
+                android:text="@string/stat_reset" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/Card"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <LinearLayout android:id="@+id/cell_skipped" style="@style/StatCell">
+                <TextView android:id="@+id/stat_skipped" style="@style/StatValue" />
+                <TextView style="@style/StatLabel" android:text="@string/stat_skipped" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/cell_resume" style="@style/StatCell">
+                <TextView android:id="@+id/stat_resume" style="@style/StatValue" />
+                <TextView style="@style/StatLabel" android:text="@string/stat_resume" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/cell_muted" style="@style/StatCell">
+                <TextView android:id="@+id/stat_muted" style="@style/StatValue" />
+                <TextView style="@style/StatLabel" android:text="@string/stat_muted" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/cell_dns" style="@style/StatCell">
+                <TextView android:id="@+id/stat_dns" style="@style/StatValue" />
+                <TextView style="@style/StatLabel" android:text="@string/stat_dns" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- What to do with ads -->
+        <LinearLayout style="@style/SectionBar">
+            <TextView style="@style/Text.Section" android:text="@string/section_mode" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <include android:id="@+id/choice_skip" layout="@layout/row_choice" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/choice_mute" layout="@layout/row_choice" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/choice_off" layout="@layout/row_choice" />
+        </LinearLayout>
+
+        <!-- Other settings and tools -->
+        <LinearLayout style="@style/SectionBar">
+            <TextView style="@style/Text.Section" android:text="@string/section_settings" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <include android:id="@+id/opt_sleep" layout="@layout/row_nav" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_dns" layout="@layout/row_switch" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_rules" layout="@layout/row_nav" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_test" layout="@layout/row_nav" />
+        </LinearLayout>
+
+        <!-- Activity -->
+        <LinearLayout style="@style/SectionBar">
+
+            <TextView style="@style/Text.Section" android:text="@string/section_activity" />
+
+            <TextView
+                android:id="@+id/events_clear"
+                style="@style/TextButton"
+                android:text="@string/activity_clear" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/events"
+            style="@style/Card"
+            android:orientation="vertical"
+            android:paddingVertical="8dp" />
+
+        <TextView
+            android:id="@+id/version"
+            style="@style/Text.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

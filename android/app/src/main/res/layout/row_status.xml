@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A label/value line in the status card, e.g. "DNS filter   ● Running". -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="36dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:screenReaderFocusable="true"
+    tools:targetApi="28">
+
+    <TextView
+        android:id="@+id/label"
+        style="@style/Text.Secondary"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/value"
+        style="@style/Text.Body"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:drawablePadding="8dp"
+        android:gravity="center_vertical|end" />
+</LinearLayout>

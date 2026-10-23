@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingBottom="16dp">
+
+    <!-- App bar: back, title, save -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_ripple_round"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_back" />
+
+        <TextView
+            style="@style/Text.AppTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:accessibilityHeading="true"
+                tools:targetApi="28"
+            android:text="@string/rules_title" />
+
+        <TextView
+            android:id="@+id/save"
+            style="@style/TextButton"
+            android:text="@string/rules_save" />
+    </LinearLayout>
+
+    <TextView
+        style="@style/Text.Secondary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="4dp"
+        android:text="@string/rules_help" />
+
+    <EditText
+        android:id="@+id/editor"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_card"
+        android:fontFamily="monospace"
+        android:gravity="top|start"
+        android:hint="@string/rules_title"
+        android:importantForAutofill="no"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:padding="16dp"
+        android:textColor="@color/text"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/error"
+        style="@style/Text.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:paddingHorizontal="4dp"
+        android:textColor="@color/bad"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/reset"
+        style="@style/TextButton"
+        android:layout_marginTop="4dp"
+        android:text="@string/rules_reset" />
+</LinearLayout>

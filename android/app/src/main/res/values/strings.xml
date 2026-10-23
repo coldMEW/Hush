@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hush</string>
+    <string name="watcher_label">Hush ad watcher</string>
+    <string name="back">Back</string>
+    <string name="version">Hush %1$s · for Spotify on this phone</string>
+
+    <!-- Status card -->
+    <string name="status_off">Hush is off</string>
+    <string name="status_off_desc">Ads play normally. Turn on to remove them.</string>
+    <string name="status_skip">Skipping ads</string>
+    <string name="status_skip_desc">Ad breaks are removed automatically, whether the phone is in use or locked.</string>
+    <string name="status_mute">Muting ads</string>
+    <string name="status_mute_desc">Music volume is muted while an ad plays.</string>
+    <string name="status_dns_only">DNS filter only</string>
+    <string name="status_dns_only_desc">Audio ads are left alone. Ad servers are still blocked.</string>
+    <string name="status_attention">Needs attention</string>
+    <string name="status_need_listener">Allow notification access so Hush can tell when an ad starts.</string>
+    <string name="status_need_shizuku">Shizuku isn\'t available, so ads are muted instead of skipped.</string>
+    <string name="status_need_dns">The DNS filter isn\'t running. Video ads may appear.</string>
+
+    <string name="power_turn_on">Turn Hush on</string>
+    <string name="power_turn_off">Turn Hush off</string>
+
+    <string name="st_detect">Ad detection</string>
+    <string name="st_skip">Ad handling</string>
+    <string name="st_dns">DNS filter</string>
+    <string name="v_active">Active</string>
+    <string name="v_no_access">No access</string>
+    <string name="v_skip">Skip</string>
+    <string name="v_mute">Mute</string>
+    <string name="v_mute_fallback">Mute (no Shizuku)</string>
+    <string name="v_off">Off</string>
+    <string name="v_running">Running</string>
+    <string name="v_stopped">Not running</string>
+
+    <!-- Setup -->
+    <string name="section_setup">Finish setup</string>
+    <string name="setup_spotify">Spotify</string>
+    <string name="setup_spotify_missing">Spotify isn\'t installed on this phone.</string>
+    <string name="setup_listener">Notification access</string>
+    <string name="setup_listener_desc">Lets Hush see when Spotify starts an ad.</string>
+    <string name="setup_vpn">DNS filter permission</string>
+    <string name="setup_vpn_desc">Filters Spotify\'s traffic only. Other apps aren\'t affected.</string>
+    <string name="setup_shizuku">Shizuku</string>
+    <string name="setup_shizuku_missing">Not installed. Needed to skip ads; without it, ads are muted.</string>
+    <string name="setup_shizuku_stopped">Installed but not running. Open it and tap Start. Needed after every restart.</string>
+    <string name="setup_shizuku_permission">Running. Allow Hush to use it.</string>
+    <string name="setup_notifications">Notifications</string>
+    <string name="setup_notifications_desc">Shows the status and a Turn off button.</string>
+    <string name="setup_battery">Unrestricted battery</string>
+    <string name="setup_battery_desc">Keeps Hush working while the phone is locked.</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_open">Open</string>
+    <string name="action_install">Get</string>
+    <string name="action_set_up">Set up</string>
+
+    <!-- Shizuku setup -->
+    <string name="sz_title">Set up Shizuku</string>
+    <string name="sz_intro">Hush needs Shizuku to restart Spotify when an ad starts. Shizuku is a free, open-source app that lets apps use the system tools Android normally keeps for computers. Setup takes about two minutes, once.</string>
+    <string name="sz_done">Shizuku is ready. Hush will now skip ads.</string>
+    <string name="sz_step_done">Done</string>
+    <string name="sz_install">1. Install Shizuku</string>
+    <string name="sz_install_desc">From Google Play, or from its official GitHub page.</string>
+    <string name="sz_dev">2. Turn on Developer options</string>
+    <string name="sz_dev_desc">In About phone, tap Build number seven times.</string>
+    <string name="sz_start">3. Start Shizuku</string>
+    <string name="sz_start_desc">In Shizuku, choose Start via Wireless debugging and follow its pairing steps. Pairing is needed only once.</string>
+    <string name="sz_start_desc_old">On this Android version Shizuku is started from a computer with adb. Open Shizuku for the command.</string>
+    <string name="sz_allow">4. Allow Hush</string>
+    <string name="sz_allow_desc">Hush asks for this as soon as Shizuku is running.</string>
+    <string name="sz_note">Shizuku stops when the phone restarts. Open it and tap Start again; Hush reminds you if it has to mute an ad because of that.</string>
+    <string name="sz_guide">Shizuku\'s setup guide</string>
+
+    <!-- Statistics -->
+    <string name="section_stats">Statistics</string>
+    <string name="stat_skipped">Skipped</string>
+    <string name="stat_resume">Avg. resume</string>
+    <string name="stat_muted">Muted</string>
+    <string name="stat_dns">Blocked</string>
+    <string name="stat_reset">Reset</string>
+    <string name="stat_none">–</string>
+
+    <!-- Ad handling -->
+    <string name="section_mode">When an ad plays</string>
+    <string name="mode_skip">Skip</string>
+    <string name="mode_skip_desc">Restarts Spotify in the background to drop the ad break. Music is back in a few seconds.</string>
+    <string name="mode_mute">Mute</string>
+    <string name="mode_mute_desc">Silences the ad and turns the sound back on when it ends. Works without Shizuku.</string>
+    <string name="mode_off">Do nothing</string>
+    <string name="mode_off_desc">Ads play. The DNS filter still runs if it\'s on.</string>
+
+    <!-- Settings -->
+    <string name="section_settings">Settings</string>
+    <string name="opt_sleep">Sleep timer</string>
+    <string name="sleep_desc_off">Off. Use this instead of Spotify\'s timer, which is lost when an ad is skipped.</string>
+    <string name="sleep_desc_at">Pauses Spotify at %1$s (%2$d min left)</string>
+    <string name="sleep_desc_eot">Pauses Spotify at the end of this song</string>
+    <string name="sleep_minutes">%1$d minutes</string>
+    <string name="sleep_hour">1 hour</string>
+    <string name="sleep_eot">End of track</string>
+    <string name="sleep_off">Turn off timer</string>
+    <string name="opt_dns">Block ad servers</string>
+    <string name="opt_dns_desc">Stops video ads and ad-related freezes using a local DNS filter for Spotify only.</string>
+    <string name="opt_rules">DNS rules</string>
+    <string name="opt_rules_desc">View or edit the blocked domains.</string>
+    <string name="opt_test">Test ad skip</string>
+    <string name="opt_test_desc">Restarts Spotify now and checks that your music comes back.</string>
+    <string name="state_on">On</string>
+    <string name="state_off">Off</string>
+    <string name="test_started">Restarting Spotify…</string>
+    <string name="test_busy">A restart is already running.</string>
+    <string name="test_needs_shizuku">Start Shizuku first. Skipping needs it.</string>
+
+    <!-- Activity -->
+    <string name="section_activity">Recent activity</string>
+    <string name="activity_clear">Clear</string>
+    <string name="activity_empty">Nothing yet. Ads that Hush handles appear here.</string>
+
+    <!-- Rules -->
+    <string name="rules_title">DNS rules</string>
+    <string name="rules_help">One rule per line: block, nxdomain, redirect &lt;host&gt;, ip &lt;a.b.c.d&gt; or upstream &lt;a.b.c.d&gt;. A rule also covers subdomains. Lines starting with # are comments.</string>
+    <string name="rules_save">Save</string>
+    <string name="rules_reset">Restore defaults</string>
+    <string name="rules_saved">Rules saved and applied.</string>
+    <string name="rules_invalid">Line %1$s</string>
+    <string name="rules_write_failed">Couldn\'t save the rules file.</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_status">Protection status</string>
+    <string name="notif_channel_alert">Problems</string>
+    <string name="notif_title">Hush is on</string>
+    <string name="notif_text">%1$d ad breaks skipped · %2$d muted</string>
+    <string name="notif_stop">Turn off</string>
+    <string name="alert_resume_title">Spotify didn\'t resume</string>
+    <string name="alert_resume_text">The ad was removed, but playback didn\'t restart. Tap to open Spotify.</string>
+
+    <string name="alert_shizuku_title">Shizuku isn\'t running</string>
+    <string name="alert_shizuku_text">Ads are muted instead of skipped. Shizuku stops when the phone restarts: open it and tap Start.</string>
+
+    <string name="vpn_denied">The DNS filter needs VPN permission.</string>
+</resources>

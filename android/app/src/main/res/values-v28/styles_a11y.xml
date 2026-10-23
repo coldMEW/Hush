@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Text.Section" parent="Text.SectionBase">
+        <item name="android:accessibilityHeading">true</item>
+    </style>
+
+    <style name="StatCell" parent="StatCellBase">
+        <item name="android:screenReaderFocusable">true</item>
+    </style>
+</resources>
