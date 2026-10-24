@@ -179,6 +179,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 ## Roadmap
 
 - [x] v1.0.1 — no audio gap after skips, including with the phone locked
+- [x] v1.0.2 — no silent playback when Android freezes the restarted Spotify
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing

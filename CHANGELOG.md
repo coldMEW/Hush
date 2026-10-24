@@ -4,6 +4,21 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-10-24
+
+### Fixed
+- Music could stop a while after a skip although Spotify still showed it as playing, and came back
+  only on its own or after opening Spotify. Android froze the restarted Spotify as an idle
+  background app. Hush now exempts the running Spotify process from the app freezer after each
+  restart (Android 14+), and checks again once the skip is done.
+
+### Changed
+- PLAY is sent the moment the restarted Spotify is ready, and the background-audio setup now runs
+  while Spotify starts instead of before it, so music comes back a little sooner.
+- The reported "music back in" time is when the music actually started.
+- Slow or failed skips show their timeline in the activity log (when Spotify started, was ready,
+  and played), to make reports easier to act on.
+
 ## [1.0.1] - 2026-10-23
 
 ### Fixed
@@ -38,5 +53,6 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[1.0.2]: https://github.com/coldMEW/Hush/releases/tag/v1.0.2
 [1.0.1]: https://github.com/coldMEW/Hush/releases/tag/v1.0.1
 [1.0.0]: https://github.com/coldMEW/Hush/releases/tag/v1.0.0

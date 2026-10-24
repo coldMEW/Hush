@@ -35,6 +35,10 @@ import java.util.regex.Pattern;
 final class Skipper {
     private static final AtomicBoolean busy = new AtomicBoolean();
     static volatile long lastFailAt;
+    // Only the skip thread uses these (see busy): when music started, and the timeline of the
+    // current skip ("session 0.6 s, ready 2.9 s, playing 3.3 s") for the activity log.
+    private static long playingAt;
+    private static final StringBuilder steps = new StringBuilder();
     // Debug builds only: run the playlist correction even when nothing changed, to test it.
     static volatile boolean debugForcePlaylistFix;
     private static final String DEBUG_OTHER = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M";
@@ -59,6 +63,7 @@ final class Skipper {
 
     private static void run(Context c, boolean test) {
         long t0 = SystemClock.elapsedRealtime();
+        steps.setLength(0);
         Prefs prefs = new Prefs(c);
         Hush.unmuteIfNeeded(c);   // in case the mute fallback was active
         String context = AdWatcher.lastContext;   // the playlist/album to come back to
@@ -70,8 +75,9 @@ final class Skipper {
         String prev = frontPackage();
         boolean spotifyInFront = Hush.SPOTIFY.equals(prev);
         String where = !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
-        String restart = BackgroundAudio.ALLOW + "; am force-stop " + Shell.arg(Hush.SPOTIFY)
-                + "; am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1";
+        // The app-ops are set after "am start": they cost ~0.2 s, which then overlaps Spotify's boot.
+        String restart = "am force-stop " + Shell.arg(Hush.SPOTIFY)
+                + "; am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1; " + BackgroundAudio.ALLOW;
 
         Result r = Result.NO_SESSION;
         String audio = "", note = "";
@@ -81,12 +87,14 @@ final class Skipper {
             Shell.sh(restart);
             MediaController mc = waitSession(c, old, 8000);
             log(t0, "attempt " + attempt + " session=" + (mc != null));
+            step(t0, attempt == 1 ? (mc != null ? "session" : "no session") : (mc != null ? "retry session" : "retry no session"));
             if (mc == null) { r = Result.NO_SESSION; continue; }
+            BackgroundAudio.unfreeze();   // the new process exists now
             if (!spotifyInFront) restore(c, prev);   // before PLAY: Spotify is only briefly in front
             r = resume(c, old, 9000, t0);
             log(t0, "resume " + r);
             if (r == Result.OK) {
-                musicAt = SystemClock.elapsedRealtime();
+                musicAt = playingAt;
                 note = fixPlaylist(c, old, context, spotifyInFront, prev, t0);
                 audio = keepAudible(c, old, t0);
                 break;
@@ -97,7 +105,8 @@ final class Skipper {
 
         double secs = ((musicAt > 0 ? musicAt : SystemClock.elapsedRealtime()) - t0) / 1000.0;
         String s = String.format(Locale.US, "%.1f s", secs);
-        String tail = " (" + where + ")" + note + audioNote(audio);
+        String tail = " (" + where + ")" + note + audioNote(audio)
+                + (secs > 6 || r != Result.OK ? " · steps: " + steps : "");   // where a slow skip lost time
         if (r == Result.OK) {
             if (test) Events.add(c, Events.INFO, "Test restart OK: music back in " + s + tail);
             else {
@@ -118,10 +127,12 @@ final class Skipper {
         Hush.refreshNotification(c);
     }
 
-    // Waits for Spotify's new session to settle, then presses PLAY, alternating three delivery
-    // routes until it plays: the system media-key dispatcher (which also grants Spotify a temporary
-    // foreground allowance, avoiding Android's background-audio muting), a direct transport
-    // control, and an injected key event.
+    // Presses PLAY on Spotify's new session, alternating three delivery routes until it plays: the
+    // system media-key dispatcher (which also grants Spotify a temporary foreground allowance,
+    // avoiding Android's background-audio muting), a direct transport control, and an injected key
+    // event. The first press goes out as soon as the session exists, while Spotify is still
+    // connecting (it can take ~2 s); the next one the moment the session settles, then every 2 s.
+    // PLAY is idempotent, so an extra press does no harm. Sets playingAt when music started.
     private static Result resume(Context c, Set<Object> old, long timeout, long t0) {
         long start = SystemClock.elapsedRealtime(), nextKick = 0, playingSince = 0;
         int kicks = 0, lastState = -1;
@@ -130,16 +141,18 @@ final class Skipper {
             MediaController mc = latest(c, old);
             PlaybackState ps = mc == null ? null : mc.getPlaybackState();
             int st = ps == null ? PlaybackState.STATE_NONE : ps.getState();
-            if (st != lastState) { log(t0, "state " + st + " actions " + (ps == null ? 0 : ps.getActions())); lastState = st; }
+            boolean changed = st != lastState;
+            if (changed) { log(t0, "state " + st + " actions " + (ps == null ? 0 : ps.getActions())); lastState = st; }
             if (st == PlaybackState.STATE_PLAYING) {
                 if (AdWatcher.isAd(mc)) return Result.AD;
-                if (playingSince == 0) playingSince = now;
-                else if (now - playingSince >= 600) return Result.OK;
+                if (playingSince == 0) { playingSince = now; step(t0, "playing"); }
+                else if (now - playingSince >= 600) { playingAt = playingSince; return Result.OK; }
             } else {
                 playingSince = 0;
                 boolean settled = st == PlaybackState.STATE_PAUSED || st == PlaybackState.STATE_STOPPED
                         || st == PlaybackState.STATE_ERROR || st == PlaybackState.STATE_NONE;
-                if (mc != null && now >= nextKick && (settled || now - start > 4000)) {
+                if (settled && changed && mc != null) step(t0, st == PlaybackState.STATE_PAUSED ? "ready" : "state " + st);
+                if (mc != null && (kicks == 0 || (settled && changed) || (now >= nextKick && (settled || now - start > 4000)))) {
                     log(t0, "kick " + kicks);
                     kick(mc, kicks++);
                     nextKick = now + 2000;
@@ -209,6 +222,11 @@ final class Skipper {
                 repairs++;
             }
             sleep(1000);
+        }
+        if (BackgroundAudio.frozen()) {   // the unfreeze did not hold: try once more
+            log(t0, "frozen by the system, unfreezing");
+            Shell.sh(BackgroundAudio.UNFREEZE);
+            audio = "frozen";
         }
         return audio;
     }
@@ -290,6 +308,11 @@ final class Skipper {
         if (pkg == null) return "another app";
         try { return c.getPackageManager().getApplicationLabel(c.getPackageManager().getApplicationInfo(pkg, 0)).toString(); }
         catch (Exception e) { return "another app"; }
+    }
+
+    private static void step(long t0, String what) {
+        if (steps.length() > 0) steps.append(", ");
+        steps.append(what).append(String.format(Locale.US, " %.1f s", (SystemClock.elapsedRealtime() - t0) / 1000.0));
     }
 
     private static void log(long t0, String msg) {

@@ -92,6 +92,15 @@ a screen-off restart stayed audible throughout (verified for 30 s, with Spotify 
 service after about 29 s). A watchdog still re-applies the ops and cycles pause/play if a mute is
 ever detected after a skip.
 
+The same missing service has a second effect. Without it Android counts the restarted Spotify as a
+cached background app, and the app freezer suspends its process about 10 seconds later. The media
+session keeps reporting "playing", the notification shows the song, but no audio is produced; the
+sound returns only when something thaws the process, such as opening Spotify. `am isfrozen
+com.spotify.music` reports `true` in that state. Since 1.0.2 Hush runs `am unfreeze --sticky` on
+the new Spotify process right after each restart (and on the running one when Hush is turned on).
+The exemption lasts for that process only, so it ends with the next restart, and nothing else on
+the phone is affected. The command exists on Android 14 and later; older versions ignore it.
+
 ## 6. Limits
 
 - Shizuku without root stops at every reboot and must be started again.
