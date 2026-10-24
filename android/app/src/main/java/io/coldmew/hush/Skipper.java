@@ -70,7 +70,7 @@ final class Skipper {
         String prev = frontPackage();
         boolean spotifyInFront = Hush.SPOTIFY.equals(prev);
         String where = !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
-        String restart = "am force-stop " + Shell.arg(Hush.SPOTIFY)
+        String restart = BackgroundAudio.ALLOW + "; am force-stop " + Shell.arg(Hush.SPOTIFY)
                 + "; am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1";
 
         Result r = Result.NO_SESSION;
@@ -88,7 +88,7 @@ final class Skipper {
             if (r == Result.OK) {
                 musicAt = SystemClock.elapsedRealtime();
                 note = fixPlaylist(c, old, context, spotifyInFront, prev, t0);
-                audio = keepAudible(c, old, prev, spotifyInFront, unlocked, t0);
+                audio = keepAudible(c, old, t0);
                 break;
             }
         }
@@ -191,56 +191,26 @@ final class Skipper {
         return ", Spotify switched playlist";
     }
 
-    // Android silences an app that plays in the background without a foreground service. Spotify
-    // promotes itself to one when its screen goes to the background while music plays; after a
-    // restart that sent it back before PLAY this only sometimes happens, and about 10 s later (when
-    // the media key's temporary allowance ends) the music is muted. Music is already playing here;
-    // to keep it audible, Spotify is brought to the front for half a second and sent back, which
-    // makes it promote itself. With the screen off this is invisible, so it is always done; with
-    // the phone in use only when Spotify does not promote itself within 2 s. Then the result is
-    // watched for a while and repaired again if the system mutes Spotify anyway.
-    private static String keepAudible(Context c, Set<Object> old, String prev, boolean spotifyInFront,
-                                      boolean unlocked, long t0) {
-        if (spotifyInFront && unlocked) return mutedState();   // the user is in Spotify
+    // Android 15+ mutes an app that plays from the background without a foreground service, through
+    // the CONTROL_AUDIO app-op. A restarted Spotify often has no such service yet, so Hush allows
+    // the op for Spotify (BackgroundAudio). This watchdog only covers the rare case where the
+    // system mutes Spotify anyway: it re-applies the op and cycles pause/play.
+    private static String keepAudible(Context c, Set<Object> old, long t0) {
         long start = SystemClock.elapsedRealtime();
-        boolean nudged = false;
         int repairs = 0;
-        while (SystemClock.elapsedRealtime() - start < 14000) {
+        String audio = "";
+        while (SystemClock.elapsedRealtime() - start < 12000) {
             MediaController mc = latest(c, old);
             if (mc != null && AdWatcher.isAd(mc)) break;   // a new ad: let the watcher handle it
-            boolean promoted = spotifyProcState().contains("fg-service");
-            String audio = mutedState();
-            long since = SystemClock.elapsedRealtime() - start;
-            log(t0, "keep-audible " + spotifyProcState() + " " + audio);
-            if (promoted && !audio.startsWith("mutedState:op")) {
-                if (since > 1500 || nudged) return audio;   // stable
-            } else if (!nudged && (!unlocked || since > 2000 || audio.startsWith("mutedState:op"))) {
-                nudge(c, prev, spotifyInFront);
-                nudged = true;
-            } else if (audio.startsWith("mutedState:op") && repairs < 2) {
-                nudge(c, prev, spotifyInFront);
-                Shell.sh("cmd media_session dispatch pause; sleep 0.4; cmd media_session dispatch play");
+            audio = mutedState();
+            if (audio.startsWith("mutedState:op") && repairs < 2) {
+                log(t0, "muted by the system, repairing: " + audio);
+                Shell.sh(BackgroundAudio.ALLOW + "; cmd media_session dispatch pause; sleep 0.3; cmd media_session dispatch play");
                 repairs++;
             }
-            sleep(500);
+            sleep(1000);
         }
-        return mutedState();
-    }
-
-    // Spotify to the front for half a second, then back to what was in front before. If Spotify
-    // itself was in front (behind the lock screen), the home screen goes in front briefly instead.
-    private static void nudge(Context c, String prev, boolean spotifyInFront) {
-        String spotify = "am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1";
-        if (spotifyInFront) {
-            Shell.sh("am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1; sleep 0.5; " + spotify);
-        } else {
-            Shell.sh(spotify + "; sleep 0.5");
-            restore(c, prev);
-        }
-    }
-
-    private static String spotifyProcState() {
-        return Shell.sh("dumpsys activity processes | grep -m1 -E 'Proc # .*com.spotify.music' | grep -oE '[(][a-z-]+[)]'");
+        return audio;
     }
 
     private static String mutedState() {

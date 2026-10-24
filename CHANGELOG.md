@@ -4,6 +4,18 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-23
+
+### Fixed
+- Music no longer goes silent after a skip, in particular with the phone locked, where it stayed
+  silent until the phone was unlocked. Android 15+ mutes media apps that play from the background
+  before they register their playback service (enforced through the `CONTROL_AUDIO` app-ops);
+  Hush now allows background audio for Spotify while Hush is on and restores Android's default
+  when Hush is turned off.
+
+### Removed
+- The 1.0.0 workaround that briefly brought Spotify to the front after a skip.
+
 ## [1.0.0] - 2026-10-23
 
 First public release.
@@ -26,4 +38,5 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[1.0.1]: https://github.com/coldMEW/Hush/releases/tag/v1.0.1
 [1.0.0]: https://github.com/coldMEW/Hush/releases/tag/v1.0.0

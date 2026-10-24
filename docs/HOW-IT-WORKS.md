@@ -75,16 +75,22 @@ song is loading is repeated a few seconds later if Spotify starts playing anyway
 
 ## 5. Background audio after a restart
 
-Android silences an app that plays audio from the background without a foreground service
-(`mutedState:op` in `dumpsys audio`). Spotify registers its playback foreground service when its
-screen goes to the background *while music plays*. After a restart-skip that sent Spotify back
-before pressing play, that transition never happens; playback is allowed only for the 10 seconds
-of the media key's temporary allowance (`media_session_calback_fgs_allowlist_duration_ms`), after
-which the audio is muted. Measured: muted about 10.5 s after playback starts, screen on or off.
+Android 15 and later silence a media app that plays from the background without a foreground
+service ("AudioHardening"). The mute is applied through the `CONTROL_AUDIO` and
+`CONTROL_AUDIO_PARTIAL` app-ops, whose default mode for apps is `foreground`
+(`dumpsys audio` shows `mutedState:op` and `source:opControlAudio`).
 
-Hush 1.0.0 watches Spotify after each skip and repairs the state (bringing Spotify forward for
-half a second, or a pause/play through the media-key dispatcher) when it is not promoted or gets
-muted. A short gap can still occur; removing it entirely is the goal of 1.0.1.
+Spotify registers its playback foreground service only when its screen goes to the background
+while music plays. After a restart-skip that never happens in time: playback is allowed for the
+10 seconds of the media key's temporary allowance, then the audio is muted. With the phone locked
+it stays muted until the phone is unlocked, because unlocking brings Spotify's screen up.
+Measured on Android 17: muted about 10.5 s after playback starts, screen on or off.
+
+Since 1.0.1 Hush sets these app-ops (and `TAKE_AUDIO_FOCUS`) to `allow` for Spotify through
+Shizuku while Hush is on, and back to `default` when Hush is turned off. With that, playback after
+a screen-off restart stayed audible throughout (verified for 30 s, with Spotify promoting its own
+service after about 29 s). A watchdog still re-applies the ops and cycles pause/play if a mute is
+ever detected after a skip.
 
 ## 6. Limits
 

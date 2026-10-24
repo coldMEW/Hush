@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     private TextView statusTitle, statusDesc;
     private TextView statSkipped, statResume, statMuted, statDns;
     private LinearLayout setupList, events;
+    private boolean shizukuSeen;
 
     private final Runnable refreshEvents = () -> ui.post(this::refresh);
     private final Runnable ticker = new Runnable() {
@@ -231,6 +232,8 @@ public class MainActivity extends Activity {
         boolean on = prefs.enabled();
         boolean listener = Hush.listenerEnabled(this);
         boolean shizuku = Shell.ready();
+        if (shizuku && !shizukuSeen) BackgroundAudio.apply(this);
+        shizukuSeen = shizuku;
         if (shizuku) Hush.clearShizukuAlert(this);
         boolean dnsRunning = DnsVpnService.running;
         String m = prefs.mode();

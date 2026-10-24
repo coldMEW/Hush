@@ -30,10 +30,12 @@ final class Hush {
         if (on) {
             Events.add(c, Events.INFO, "Hush turned on");
             applyDns(c);
+            BackgroundAudio.allow();
             try { NotificationListenerService.requestRebind(new ComponentName(c, AdWatcher.class)); } catch (Exception ignored) {}
         } else {
             Events.add(c, Events.INFO, "Hush turned off");
             stopVpn(c);
+            BackgroundAudio.reset();
             unmuteIfNeeded(c);
         }
         refreshNotification(c);

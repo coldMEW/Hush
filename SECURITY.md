@@ -14,8 +14,9 @@ so that neither can be turned against the phone.
 
 **Privileged shell**
 - The only commands Hush runs are fixed: force-stop and start Spotify, return to the previous app
-  or the home screen, press play or pause, open a Spotify playlist or album link, and read media,
-  audio and task state.
+  or the home screen, press play or pause, open a Spotify playlist or album link, allow Spotify's
+  background-audio app-ops (reset to default when Hush is turned off), and read media, audio and
+  task state.
 - Every value inserted into a command (package and component names, Spotify URIs) is checked
   against a strict allow-list pattern and single-quoted. Anything else is rejected; unit tests
   cover injection attempts.

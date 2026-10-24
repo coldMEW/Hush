@@ -40,7 +40,7 @@ the playback freezes they cause.
 | | |
 | --- | --- |
 | **Skips whole ad breaks** | Every ad is recognised from Spotify's own metadata — including the first ad of a multi-ad break — and the break is dropped in about 4 seconds. |
-| **Leaves your phone alone** | No screen wake-ups. A locked phone stays locked, the app you are using stays in front, and Spotify goes back to the background if that is where it was. |
+| **Leaves your phone alone** | No screen wake-ups. A locked phone stays locked, the app you are using stays in front, and Spotify goes back to the background if that is where it was. Music keeps playing with the screen off. |
 | **Keeps your place** | If Spotify comes back on a different playlist or album after a restart, Hush switches back to the one you were playing. |
 | **Sleep timer that survives skips** | Spotify's own timer is lost whenever Spotify restarts, so Hush has its own: 5 minutes to 1 hour, or end of song. |
 | **Mute mode** | Prefer not to restart Spotify? Hush can mute ads instead, and does so automatically when Shizuku is not running. |
@@ -125,10 +125,6 @@ Android allows one VPN at a time. Hush's ad skipping keeps working without its D
 
 ## Known issues
 
-- **Short audio gap after some skips (v1.0.0).** About 10 seconds after a skip, Android can silence
-  Spotify for a few seconds because the restarted Spotify has not yet re-registered as a
-  background-playback app. Hush detects and repairs this, but you may hear a brief gap. A complete
-  fix is planned for v1.0.1.
 - Restoring the previous playlist works for playlists and albums, not for an artist's
   "Popular" list.
 
@@ -182,7 +178,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 
 ## Roadmap
 
-- [ ] v1.0.1 — remove the post-skip audio gap entirely
+- [x] v1.0.1 — no audio gap after skips, including with the phone locked
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing
