@@ -9,10 +9,12 @@ public class DebugReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context c, Intent i) {
         if ("io.coldmew.hush.TEST_SKIP".equals(i.getAction())) {
             Skipper.debugForcePlaylistFix = i.getBooleanExtra("playlist", false);
+            Skipper.debugNoButton = i.getBooleanExtra("nobutton", false);   // test the fallback
             Skipper.start(c, true);
         } else if ("io.coldmew.hush.TEST_SLEEP".equals(i.getAction())) {
-            int m = i.getIntExtra("minutes", 0);
-            if (m == 0) SleepTimer.cancel(c); else SleepTimer.set(c, m);
+            int m = i.getIntExtra("minutes", 0), s = i.getIntExtra("seconds", 0);
+            if (s > 0) SleepTimer.setSeconds(c, s);
+            else if (m == 0) SleepTimer.cancel(c); else SleepTimer.set(c, m);
         }
     }
 }

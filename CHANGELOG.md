@@ -4,6 +4,28 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-10-24
+
+### Changed
+- Spotify no longer shows on screen during a skip. When Spotify is in the background, Hush now
+  starts it the way a headset play button does (through Spotify's media-button receiver), so it
+  resumes on its own and whatever you were doing stays in front. If you are in Spotify, its screen
+  is reopened in the same moment, so the home screen only flashes briefly. If the button route
+  does not bring Spotify back, Hush falls back to the previous method automatically.
+- Spotify's notification and lock-screen controls are back with the music (about 1 s after the
+  skip instead of about 20 s).
+- Ads stop sooner (within about 0.1 s of being detected, usually before they are heard) and music
+  comes back sooner: about 2 to 3 s of silence in real use, down from 3 to 5 s.
+
+### Added
+- Custom sleep timer: any time from 1 second to 23 h 59 min 59 s, picked as hours, minutes and
+  seconds. Long timers do not keep the phone awake until their last hour.
+
+### Fixed
+- "End of song" could leave Spotify stuck loading the next song, so pressing play did nothing
+  until the song was skipped. The pause now waits until the next song is playing.
+- After the sleep timer paused Spotify, pressing play within 10 seconds could be undone by Hush.
+
 ## [1.0.2] - 2026-10-24
 
 ### Fixed
@@ -53,6 +75,7 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[1.0.3]: https://github.com/coldMEW/Hush/releases/tag/v1.0.3
 [1.0.2]: https://github.com/coldMEW/Hush/releases/tag/v1.0.2
 [1.0.1]: https://github.com/coldMEW/Hush/releases/tag/v1.0.1
 [1.0.0]: https://github.com/coldMEW/Hush/releases/tag/v1.0.0

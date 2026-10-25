@@ -28,12 +28,25 @@ The order of steps matters:
 
 1. Note which app is in front (from the recent-tasks list, which is also correct while the phone
    is locked) and which playlist or album is playing.
-2. Force-stop Spotify and start its main activity. Starting an activity does not wake the screen;
-   while the phone is locked it opens behind the lock screen.
+2. Force-stop Spotify and start it again. Reading the app in front and the force-stop run in one
+   shell call, so the ad stops about 0.1 s after it is detected.
+   - Hush sends a play key straight to Spotify's media-button receiver (since 1.0.3), the way a
+     headset button reaches a stopped player. Spotify starts without any screen, resumes playback
+     by itself and starts its playback service with its notification and lock-screen controls
+     right away. Starting that service from the background needs a short temporary power
+     allowlist entry (`cmd deviceidle tempwhitelist -d 30000`); without it Spotify plays with no
+     notification. Hush finds the receiver at run time, so a renamed class in a Spotify update does
+     not break skipping.
+   - If Spotify was the app in front, the same shell call opens Spotify's screen right after the
+     force-stop, so the home screen shows for only a moment and you stay in Spotify.
+   - If the button does not bring a new session within 3 s, Hush starts Spotify's main activity
+     instead (the 1.0.0 to 1.0.2 method). Starting an activity does not wake the screen; while the
+     phone is locked it opens behind the lock screen.
 3. Wait for Spotify's **new** media session. Force-stop cancels the media-button `PendingIntent`
-   Spotify registered, so a play key sent before the new session exists is lost. This was the
-   cause of skips that left Spotify silent over Bluetooth.
-4. If Spotify was in the background, bring back the app (or home screen) that was in front.
+   Spotify registered, so a play key sent through the system before the new session exists is
+   lost. This was the cause of skips that left Spotify silent over Bluetooth.
+4. If Spotify's activity was started but Spotify was in the background, bring back the app (or
+   home screen) that was in front.
 5. When the session settles (paused), press play. Hush alternates three routes until playback
    starts: the system media-key dispatcher (which also gives Spotify a temporary foreground
    allowance and avoids Android muting background audio), a transport control, and a key event.
@@ -42,7 +55,9 @@ The order of steps matters:
    play-from-URI command on the free tier.)
 7. If Android still reports the player as muted, a pause/play through the dispatcher clears it.
 
-A typical skip takes 4 to 5 seconds. If a restart brings the ad back or music does not resume,
+Music is typically audible again 2 to 3 seconds after the ad is stopped (3 to 4 with the activity
+route); the "Avg. resume" statistic is a little higher because it counts until Spotify reports
+that it is playing, which trails the actual sound by up to a second. If a restart brings the ad back or music does not resume,
 Hush tries once more, then falls back to muting the rest of the break and shows a notification.
 
 Hush never sends wake-up, power or sleep keys, so the phone is never woken or locked.
@@ -68,10 +83,19 @@ Audio ads cannot be removed by DNS: they are served from the same hosts as music
 
 Spotify's sleep timer lives only in Spotify's memory: it is not a system alarm, it is not part of
 the media session and it is not shown in Spotify's notification, so no other app can read it, and
-it is lost when Spotify restarts. Hush therefore has its own timer. Timed choices are counted down
-inside Hush under a partial wake lock, with an inexact system alarm as a backup in case Hush is
-stopped; "end of song" pauses as soon as the media ID changes. A pause that lands while the next
-song is loading is repeated a few seconds later if Spotify starts playing anyway.
+it is lost when Spotify restarts. Hush therefore has its own timer: presets from 5 minutes to an
+hour, any custom time up to 23 h 59 min 59 s, or the end of the current song.
+
+- The last hour is counted down inside Hush under a partial wake lock, with an inexact system
+  alarm as a backup in case Hush is stopped. Before the last hour nothing keeps the phone awake:
+  an alarm for the start of the last hour hands over to the countdown, so a long timer costs no
+  battery while the music is paused.
+- A pause that reaches Spotify while it is switching songs (buffering or connecting) leaves it
+  stuck: silent, but play no longer works until the song is skipped. The pause therefore waits
+  until Spotify is playing. For "end of song" that is the first moment of the next song (about
+  0.1 to 0.3 s of it is heard); the pause is sent after 10 s at the latest. Two short re-checks
+  (1.5 s and 4 s) pause again if a song start overtakes the pause, without undoing a deliberate
+  press of play later on.
 
 ## 5. Background audio after a restart
 

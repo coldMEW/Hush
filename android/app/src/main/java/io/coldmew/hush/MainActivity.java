@@ -24,6 +24,7 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.NumberPicker;
 import android.widget.RadioButton;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -153,26 +154,69 @@ public class MainActivity extends Activity {
         } catch (Throwable ignored) {}
     }
 
-    // Same choices as Spotify's own sleep timer, plus "Turn off" while one is running.
+    // Same choices as Spotify's own sleep timer, a custom time, and "Turn off" while one is running.
     private void chooseSleep() {
         int n = SleepTimer.CHOICES.length;
         boolean on = SleepTimer.active(this);
-        CharSequence[] items = new CharSequence[on ? n + 1 : n];
+        CharSequence[] items = new CharSequence[on ? n + 2 : n + 1];
         for (int i = 0; i < n; i++) {
             int m = SleepTimer.CHOICES[i];
             items[i] = m == SleepTimer.END_OF_TRACK ? getString(R.string.sleep_eot)
                     : m == 60 ? getString(R.string.sleep_hour) : getString(R.string.sleep_minutes, m);
         }
-        if (on) items[n] = getString(R.string.sleep_off);
+        items[n] = getString(R.string.sleep_custom);
+        if (on) items[n + 1] = getString(R.string.sleep_off);
         new AlertDialog.Builder(this)
                 .setTitle(R.string.opt_sleep)
                 .setItems(items, (d, which) -> {
-                    if (which == n) SleepTimer.cancel(this);
+                    if (which == n) { chooseCustomSleep(); return; }
+                    if (which == n + 1) SleepTimer.cancel(this);
                     else SleepTimer.set(this, SleepTimer.CHOICES[which]);
                     refresh();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    // Any time from 1 second to 23 h 59 min 59 s, picked as hours, minutes and seconds.
+    private void chooseCustomSleep() {
+        NumberPicker hours = picker(SleepTimer.MAX_SECONDS / 3600, 1), minutes = picker(59, 0), seconds = picker(59, 0);
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(android.view.Gravity.CENTER);
+        int pad = Math.round(16 * getResources().getDisplayMetrics().density);
+        row.setPadding(pad, pad, pad, 0);
+        row.addView(hours);
+        row.addView(unit(R.string.sleep_custom_hours, pad));
+        row.addView(minutes);
+        row.addView(unit(R.string.sleep_custom_minutes, pad));
+        row.addView(seconds);
+        row.addView(unit(R.string.sleep_custom_seconds, pad));
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.sleep_custom_title)
+                .setView(row)
+                .setPositiveButton(R.string.sleep_custom_start, (d, w) -> {
+                    int total = hours.getValue() * 3600 + minutes.getValue() * 60 + seconds.getValue();
+                    if (total < 1) { Toast.makeText(this, R.string.sleep_custom_zero, Toast.LENGTH_SHORT).show(); return; }
+                    SleepTimer.setSeconds(this, total);
+                    refresh();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private NumberPicker picker(int max, int value) {
+        NumberPicker p = new NumberPicker(this);
+        p.setMinValue(0);
+        p.setMaxValue(max);
+        p.setValue(value);
+        return p;
+    }
+
+    private TextView unit(int text, int pad) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setPadding(pad / 4, 0, pad / 2, 0);
+        return t;
     }
 
     private void setMode(String m) {

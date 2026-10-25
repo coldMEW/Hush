@@ -13,6 +13,7 @@ import android.media.session.PlaybackState;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.KeyEvent;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -26,10 +27,10 @@ import java.util.regex.Pattern;
 // resumes the queue without it. What this relies on (see docs/HOW-IT-WORKS.md):
 //  - force-stop cancels Spotify's media-button PendingIntent, so a PLAY key sent before Spotify has
 //    re-created its media session goes nowhere. We wait for the new session, then send PLAY.
-//  - Starting Spotify's activity does not wake the screen; while locked it stays behind the lock
-//    screen. The phone is left as it was: no wake-up, no sleep key, no lock.
-//  - If Spotify was in the background, whatever was in front (an app or the home screen) is brought
-//    back as soon as Spotify's new session exists.
+//  - If Spotify was in the background, it is started through its media-button receiver and never
+//    shows on screen. If it was in front (or the button does not work), its activity is started;
+//    that does not wake the screen, and whatever was in front is brought back as soon as Spotify's
+//    new session exists. The phone is left as it was: no wake-up, no sleep key, no lock.
 //  - A cold start occasionally resumes an older playlist. The playlist that was playing before the
 //    ad is remembered and started again if Spotify comes back somewhere else.
 final class Skipper {
@@ -41,6 +42,8 @@ final class Skipper {
     private static final StringBuilder steps = new StringBuilder();
     // Debug builds only: run the playlist correction even when nothing changed, to test it.
     static volatile boolean debugForcePlaylistFix;
+    // Debug builds only: skip the media-button start, to test the activity-start fallback.
+    static volatile boolean debugNoButton;
     private static final String DEBUG_OTHER = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M";
     private static String debugPrev;
 
@@ -70,27 +73,51 @@ final class Skipper {
 
         boolean screenOn = c.getSystemService(PowerManager.class).isInteractive();
         boolean unlocked = screenOn && !c.getSystemService(KeyguardManager.class).isKeyguardLocked();
-        // The app in front, known even while the phone is locked. If it isn't Spotify, Spotify was
-        // playing in the background and goes back there after the restart.
-        String prev = frontPackage();
-        boolean spotifyInFront = Hush.SPOTIFY.equals(prev);
+        String stop = "am force-stop " + Shell.arg(Hush.SPOTIFY);
+        String openSpotify = "am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1";
+        // The temporary allowlist lets the new Spotify start its playback service from the
+        // background; without it Spotify plays with no notification or lock-screen controls.
+        String allowlist = "cmd deviceidle tempwhitelist -d 30000 " + Shell.arg(Hush.SPOTIFY) + " >/dev/null 2>&1";
+        // Spotify is started through its media-button receiver, the way a headset button starts it:
+        // it resumes playback and posts its notification at once, and in the background it never
+        // comes to the screen. The plain activity start (and PLAY once its session settles) is the
+        // fallback when the button does not bring Spotify back.
+        boolean noButton = BuildConfig.DEBUG && debugNoButton;
+        debugNoButton = false;
+        ComponentName button = noButton ? null : mediaButtonReceiver(c);
+
+        // Everything above is prepared before Spotify is stopped: the ad is audible until then.
+        // One shell call reads the app in front (known even while the phone is locked) and stops
+        // Spotify right after. If Spotify was the app in front, its screen is opened in the same
+        // instant, so the home screen does not show while Spotify restarts, and the shell reports
+        // that with OPENED. Otherwise Spotify was playing in the background and stays there.
+        Set<Object> old = tokens(c);
+        String out = Shell.sh("R=$(" + RECENT_TOP + "); echo \"$R\"; " + stop + "; case \"$R\" in *=" + Hush.SPOTIFY
+                + "/*) " + openSpotify + "; echo " + OPENED + ";; esac; " + allowlist);
+        boolean spotifyInFront = out.contains(OPENED);
+        String prev = spotifyInFront ? Hush.SPOTIFY : frontPackage(out);
         String where = !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
-        // The app-ops are set after "am start": they cost ~0.2 s, which then overlaps Spotify's boot.
-        String restart = "am force-stop " + Shell.arg(Hush.SPOTIFY)
-                + "; am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1; " + BackgroundAudio.ALLOW;
 
         Result r = Result.NO_SESSION;
         String audio = "", note = "";
         long musicAt = 0;   // when music was back; what the user waits for
         for (int attempt = 1; attempt <= 2; attempt++) {
-            Set<Object> old = tokens(c);
-            Shell.sh(restart);
-            MediaController mc = waitSession(c, old, 8000);
-            log(t0, "attempt " + attempt + " session=" + (mc != null));
-            step(t0, attempt == 1 ? (mc != null ? "session" : "no session") : (mc != null ? "retry session" : "retry no session"));
+            if (attempt > 1) old = tokens(c);
+            boolean viaButton = attempt == 1 && button != null;
+            if (viaButton) {   // Spotify plays as soon as it starts here, so the app-ops come first
+                Shell.sh(BackgroundAudio.ALLOW);
+                pressPlay(c, button);
+            } else if (attempt == 1) {   // the app-ops overlap Spotify's start here (~0.1 s)
+                Shell.sh((spotifyInFront ? "" : openSpotify + "; ") + BackgroundAudio.ALLOW);
+            } else {
+                Shell.sh(stop + "; " + allowlist + "; " + openSpotify + "; " + BackgroundAudio.ALLOW);
+            }
+            MediaController mc = waitSession(c, old, viaButton ? 3000 : 8000);
+            log(t0, "attempt " + attempt + (viaButton ? " (button)" : "") + " session=" + (mc != null));
+            step(t0, (attempt == 1 ? "" : "retry ") + (mc != null ? "session" : "no session") + (viaButton ? " (button)" : ""));
             if (mc == null) { r = Result.NO_SESSION; continue; }
             BackgroundAudio.unfreeze();   // the new process exists now
-            if (!spotifyInFront) restore(c, prev);   // before PLAY: Spotify is only briefly in front
+            if (!viaButton && !spotifyInFront) restore(c, prev);   // before PLAY: Spotify is only briefly in front
             r = resume(c, old, 9000, t0);
             log(t0, "resume " + r);
             if (r == Result.OK) {
@@ -242,6 +269,23 @@ final class Skipper {
         return audio.isEmpty() || audio.equals("mutedState:none") ? "" : " [" + audio + "]";
     }
 
+    // Spotify's media-button receiver, looked up rather than hard-coded so a renamed class in a
+    // Spotify update does not break skipping (the activity start is used if there is none).
+    private static ComponentName mediaButtonReceiver(Context c) {
+        List<ResolveInfo> r = c.getPackageManager().queryBroadcastReceivers(
+                new Intent(Intent.ACTION_MEDIA_BUTTON).setPackage(Hush.SPOTIFY), 0);
+        return r.isEmpty() ? null : new ComponentName(Hush.SPOTIFY, r.get(0).activityInfo.name);
+    }
+
+    // A PLAY key (down and up) to the stopped Spotify, which force-stop left in the "stopped" state.
+    private static void pressPlay(Context c, ComponentName receiver) {
+        for (int action : new int[]{KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP}) {
+            c.sendBroadcast(new Intent(Intent.ACTION_MEDIA_BUTTON).setComponent(receiver)
+                    .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES | Intent.FLAG_RECEIVER_FOREGROUND)
+                    .putExtra(Intent.EXTRA_KEY_EVENT, new KeyEvent(action, KeyEvent.KEYCODE_MEDIA_PLAY)));
+        }
+    }
+
     private static String launchComponent(Context c) {
         Intent i = c.getPackageManager().getLaunchIntentForPackage(Hush.SPOTIFY);
         return i != null && i.getComponent() != null ? i.getComponent().flattenToShortString() : Hush.SPOTIFY + "/.MainActivity";
@@ -280,9 +324,15 @@ final class Skipper {
     // activity. The task line's "A=" field is an affinity, which need not be a package name.
     private static final Pattern FRONT = Pattern.compile("(?:realActivity=|cmp=|I=)([A-Za-z0-9_.]+)/");
 
-    // Package of the most recent task, i.e. the app on screen (or behind the lock screen).
-    private static String frontPackage() {
-        Matcher m = FRONT.matcher(Shell.sh("dumpsys activity recents | sed -n '/Recent #0/,/Recent #1/p' | head -40"));
+    // The most recent task's entry in the recents list: the app on screen (or behind the lock screen).
+    private static final String RECENT_TOP = "dumpsys activity recents | sed -n '/Recent #0/,/Recent #1/p' | head -40";
+    private static final String OPENED = "@@hush-opened-spotify";
+
+    private static String frontPackage() { return frontPackage(Shell.sh(RECENT_TOP)); }
+
+    // Package of the app in front, from RECENT_TOP's output.
+    static String frontPackage(String recentTop) {
+        Matcher m = FRONT.matcher(recentTop);
         return m.find() ? m.group(1) : null;
     }
 

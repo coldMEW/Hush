@@ -25,7 +25,7 @@ final class BackgroundAudio {
         StringBuilder b = new StringBuilder();
         for (String op : OPS) {
             if (b.length() > 0) b.append("; ");
-            b.append("appops set ").append(Shell.arg(Hush.SPOTIFY)).append(' ').append(op).append(' ').append(mode)
+            b.append("cmd appops set ").append(Shell.arg(Hush.SPOTIFY)).append(' ').append(op).append(' ').append(mode)
                     .append(" 2>/dev/null");
         }
         return b.toString();

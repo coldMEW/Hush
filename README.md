@@ -39,10 +39,10 @@ the playback freezes they cause.
 
 | | |
 | --- | --- |
-| **Skips whole ad breaks** | Every ad is recognised from Spotify's own metadata — including the first ad of a multi-ad break — and the break is dropped in about 4 seconds. |
-| **Leaves your phone alone** | No screen wake-ups. A locked phone stays locked, the app you are using stays in front, and Spotify goes back to the background if that is where it was. Music keeps playing with the screen off. |
+| **Skips whole ad breaks** | Every ad is recognised from Spotify's own metadata — including the first ad of a multi-ad break — and music is back about 2 to 3 seconds later. |
+| **Leaves your phone alone** | No screen wake-ups. A locked phone stays locked, the app you are using stays in front, and Spotify never pops up on screen when it was in the background. Its lock-screen controls come back right away. Music keeps playing with the screen off. |
 | **Keeps your place** | If Spotify comes back on a different playlist or album after a restart, Hush switches back to the one you were playing. |
-| **Sleep timer that survives skips** | Spotify's own timer is lost whenever Spotify restarts, so Hush has its own: 5 minutes to 1 hour, or end of song. |
+| **Sleep timer that survives skips** | Spotify's own timer is lost whenever Spotify restarts, so Hush has its own: 5 minutes to 1 hour, any custom time (hours, minutes, seconds), or end of song. |
 | **Mute mode** | Prefer not to restart Spotify? Hush can mute ads instead, and does so automatically when Shizuku is not running. |
 | **Spotify-only DNS filter** | Blocks video-ad hosts and the ad-asset host that freezes background playback. Other apps and all non-DNS traffic are untouched. |
 | **Guided setup** | A step-by-step screen installs and starts Shizuku, ticking off each step as it completes. |
@@ -165,7 +165,7 @@ Without it, `assembleRelease` produces an unsigned APK.
 ```
 android/app/src/main/java/io/coldmew/hush/
 ├── AdWatcher.java          notification listener: reads Spotify's media session, detects ads
-├── Skipper.java            the restart-skip: force-stop, restart, resume, restore the screen
+├── Skipper.java            the restart-skip: force-stop, restart, resume
 ├── SleepTimer.java         Hush's own sleep timer
 ├── DnsVpnService.java      Spotify-only DNS filter (VpnService)
 ├── Dns.java, Rules.java    DNS packet handling and rules
@@ -180,6 +180,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 
 - [x] v1.0.1 — no audio gap after skips, including with the phone locked
 - [x] v1.0.2 — no silent playback when Android freezes the restarted Spotify
+- [x] v1.0.3 — Spotify stays off screen during a skip, and its controls come back right away
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing
