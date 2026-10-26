@@ -9,6 +9,10 @@
             android:name=".ShizukuSetupActivity"
             android:exported="true"
             tools:replace="android:exported" />
+        <activity
+            android:name=".HelperSetupActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
         <receiver
             android:name=".DebugReceiver"
             android:exported="true"
@@ -16,6 +20,8 @@
             <intent-filter>
                 <action android:name="io.coldmew.hush.TEST_SKIP" />
                 <action android:name="io.coldmew.hush.TEST_SLEEP" />
+                <action android:name="io.coldmew.hush.TEST_HELPER" />
+                <action android:name="io.coldmew.hush.TEST_PAIR" />
             </intent-filter>
         </receiver>
     </application>

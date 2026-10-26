@@ -1,0 +1,33 @@
+name: Bug report
+description: Something in Hush doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting. Please don't include personal information you don't want to be public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: In Hush, scroll down to Settings, tap **Copy diagnostics** and paste it here.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: spotify
+    attributes:
+      label: Spotify version
+      placeholder: e.g. 9.1.92
+  - type: textarea
+    id: activity
+    attributes:
+      label: Recent activity
+      description: The related lines from Recent activity in Hush (remove song titles if you prefer).
+      render: text

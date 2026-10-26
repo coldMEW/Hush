@@ -189,6 +189,21 @@
             <View style="@style/Divider" />
 
             <include android:id="@+id/opt_test" layout="@layout/row_nav" />
+
+            <!-- Only once Hush is paired with Wireless debugging. -->
+            <View
+                android:id="@+id/opt_auto_divider"
+                style="@style/Divider"
+                android:visibility="gone" />
+
+            <include
+                android:id="@+id/opt_auto"
+                layout="@layout/row_switch"
+                android:visibility="gone" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_diag" layout="@layout/row_nav" />
         </LinearLayout>
 
         <!-- Activity -->

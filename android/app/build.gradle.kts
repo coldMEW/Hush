@@ -16,8 +16,8 @@ android {
         applicationId = "io.coldmew.hush"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.0.3"
+        versionCode = 9
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -40,6 +40,22 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+        }
+        // Exactly the release build (R8, stripped logs), installable next to it, with the debug test
+        // triggers: for device tests of what R8 produces without replacing an installed release.
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".staging"
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
+    }
+
+    sourceSets {
+        getByName("staging") {
+            java.srcDir("src/debug/java")
+            manifest.srcFile("src/debug/AndroidManifest.xml")
         }
     }
 

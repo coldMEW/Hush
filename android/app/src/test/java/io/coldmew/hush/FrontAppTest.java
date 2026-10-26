@@ -28,6 +28,13 @@ public class FrontAppTest {
                 + "  realActivity=org.example.app/.Main\n"));
     }
 
+    // What Hush's helper returns when it reads the task list directly (see helper/Actions).
+    @Test public void helperDirectRead() {
+        assertEquals("com.spotify.music", Skipper.frontPackage("realActivity=com.spotify.music/.SpotifyMainActivity\n@@hush-opened-spotify"));
+        assertEquals("com.google.android.apps.nexuslauncher",
+                Skipper.frontPackage("realActivity=com.google.android.apps.nexuslauncher/.NexusLauncherActivity"));
+    }
+
     @Test public void nothingUsable() {
         assertNull(Skipper.frontPackage(""));
         assertNull(Skipper.frontPackage("* Recent #0: Task{1 #9 type=standard A=10001:x}\n"));

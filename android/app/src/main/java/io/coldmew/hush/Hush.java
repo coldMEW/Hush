@@ -19,8 +19,8 @@ final class Hush {
     static final String TAG = "Hush";
     static final String SPOTIFY = "com.spotify.music";
     static final String CH_STATUS = "status", CH_ALERT = "alert";
-    static final int NOTIF_STATUS = 1, NOTIF_ALERT = 2, NOTIF_SHIZUKU = 3;
-    static final String ACTION_OFF = "io.coldmew.hush.TURN_OFF";
+    static final int NOTIF_STATUS = 1, NOTIF_ALERT = 2, NOTIF_SHIZUKU = 3, NOTIF_HELPER = 4;
+    static final String ACTION_OFF = "io.coldmew.hush.TURN_OFF", ACTION_RESUME = "io.coldmew.hush.RESUME";
 
     private Hush() {}
 
@@ -84,7 +84,8 @@ final class Hush {
                 .setColor(c.getColor(R.color.accent))
                 .setContentTitle(c.getString(R.string.notif_title))
                 .setContentText(SleepTimer.active(c) ? SleepTimer.describe(c)
-                        : c.getString(R.string.notif_text, p.get(Prefs.SKIPPED), p.get(Prefs.MUTED)))
+                        : c.getResources().getQuantityString(R.plurals.notif_text, (int) Math.min(p.get(Prefs.SKIPPED), Integer.MAX_VALUE),
+                                p.get(Prefs.SKIPPED), p.get(Prefs.MUTED)))
                 .setContentIntent(open)
                 .setOngoing(true)
                 .setShowWhen(false)
@@ -106,40 +107,56 @@ final class Hush {
                 .setContentTitle(title).setContentText(text).setContentIntent(pi).setAutoCancel(true).build());
     }
 
-    private static boolean shizukuAlerted;
+    private static boolean skipAlerted;
 
-    // Shizuku (without root) stops at every reboot. The first ad that has to be muted because of
-    // that posts one reminder with a button that opens Shizuku.
-    static void shizukuAlert(Context c) {
-        if (shizukuAlerted) return;
-        shizukuAlerted = true;
-        Intent open = c.getPackageManager().getLaunchIntentForPackage(Shell.SHIZUKU);
-        if (open == null) open = new Intent(c, MainActivity.class);
+    // The first ad that has to be muted because skipping is not ready leads to the fix, once:
+    // Hush's own helper is started again if it can be (or its "tap to resume" notice is shown);
+    // a Shizuku user gets the reminder to start Shizuku (it stops at every reboot); everyone else
+    // gets the one-time setup.
+    static void skipAlert(Context c) {
+        if (skipAlerted) return;
+        skipAlerted = true;
+        Prefs p = new Prefs(c);
+        if (HelperControl.supported() && p.paired()) {
+            HelperControl.ensure(c, p.autoRestart() && HelperControl.canToggleDebugging(c), true);
+            return;
+        }
+        boolean shizuku = Shell.installed(c);
+        Intent open = shizuku ? c.getPackageManager().getLaunchIntentForPackage(Shell.SHIZUKU) : null;
+        if (open == null) open = new Intent(c, HelperControl.supported() ? HelperSetupActivity.class : ShizukuSetupActivity.class);
+        String text = c.getString(shizuku ? R.string.alert_shizuku_text : R.string.alert_setup_text);
         PendingIntent pi = PendingIntent.getActivity(c, 3, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         c.getSystemService(NotificationManager.class).notify(NOTIF_SHIZUKU, new Notification.Builder(c, CH_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_hush).setColor(c.getColor(R.color.accent))
-                .setContentTitle(c.getString(R.string.alert_shizuku_title))
-                .setContentText(c.getString(R.string.alert_shizuku_text))
-                .setStyle(new Notification.BigTextStyle().bigText(c.getString(R.string.alert_shizuku_text)))
+                .setContentTitle(c.getString(shizuku ? R.string.alert_shizuku_title : R.string.helper_notice_title))
+                .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setContentIntent(pi).setAutoCancel(true).build());
     }
 
-    static void clearShizukuAlert(Context c) {
-        shizukuAlerted = false;
+    // Skipping works again: the notices are no longer needed.
+    static void clearSkipAlert(Context c) {
+        skipAlerted = false;
         c.getSystemService(NotificationManager.class).cancel(NOTIF_SHIZUKU);
+        HelperControl.cancelNotice(c);
     }
 
-    // Notification "Turn off" button, boot and app-update events.
+    // Notification buttons, boot and app-update events.
     public static class Receiver extends BroadcastReceiver {
         @Override public void onReceive(Context c, Intent i) {
             String a = i.getAction();
             if (ACTION_OFF.equals(a)) setEnabled(c, false);
             else if (SleepTimer.ACTION_SLEEP.equals(a)) SleepTimer.fireFromAlarm(c);
-            else if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
+            else if (ACTION_RESUME.equals(a)) {   // "tap to resume skipping"
+                PendingResult done = goAsync();
+                HelperControl.resumeFromNotice(c, done::finish);
+            } else if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
                 Prefs p = new Prefs(c);
                 if (Intent.ACTION_BOOT_COMPLETED.equals(a)) p.mutedByUs(false);   // reboot clears mute
                 else unmuteIfNeeded(c);   // an update killed us mid-ad: don't leave the phone muted
                 if (p.enabled()) { applyDns(c); refreshNotification(c); }
+                // The helper does not survive a reboot, and an update replaces it.
+                HelperControl.onBoot(c);
             }
         }
     }

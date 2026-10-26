@@ -16,7 +16,7 @@
     <string name="status_dns_only_desc">Audio ads are left alone. Ad servers are still blocked.</string>
     <string name="status_attention">Needs attention</string>
     <string name="status_need_listener">Allow notification access so Hush can tell when an ad starts.</string>
-    <string name="status_need_shizuku">Shizuku isn\'t available, so ads are muted instead of skipped.</string>
+    <string name="status_need_shizuku">Skipping is paused. Until it\'s back, ads are muted.</string>
     <string name="status_need_dns">The DNS filter isn\'t running. Video ads may appear.</string>
 
     <string name="power_turn_on">Turn Hush on</string>
@@ -29,7 +29,7 @@
     <string name="v_no_access">No access</string>
     <string name="v_skip">Skip</string>
     <string name="v_mute">Mute</string>
-    <string name="v_mute_fallback">Mute (no Shizuku)</string>
+    <string name="v_mute_fallback">Mute (skipping not ready)</string>
     <string name="v_off">Off</string>
     <string name="v_running">Running</string>
     <string name="v_stopped">Not running</string>
@@ -39,7 +39,7 @@
     <string name="setup_spotify">Spotify</string>
     <string name="setup_spotify_missing">Spotify isn\'t installed on this phone.</string>
     <string name="setup_listener">Notification access</string>
-    <string name="setup_listener_desc">Lets Hush see when Spotify starts an ad.</string>
+    <string name="setup_listener_desc">Lets Hush see when Spotify starts an ad. Hush doesn\'t read your notifications.</string>
     <string name="setup_vpn">DNS filter permission</string>
     <string name="setup_vpn_desc">Filters Spotify\'s traffic only. Other apps aren\'t affected.</string>
     <string name="setup_shizuku">Shizuku</string>
@@ -86,7 +86,7 @@
     <string name="mode_skip">Skip</string>
     <string name="mode_skip_desc">Restarts Spotify in the background to drop the ad break. Music is back in a few seconds.</string>
     <string name="mode_mute">Mute</string>
-    <string name="mode_mute_desc">Silences the ad and turns the sound back on when it ends. Works without Shizuku.</string>
+    <string name="mode_mute_desc">Silences the ad and turns the sound back on when it ends. Works without any setup.</string>
     <string name="mode_off">Do nothing</string>
     <string name="mode_off_desc">Ads play. The DNS filter still runs if it\'s on.</string>
 
@@ -122,7 +122,7 @@
     <string name="state_off">Off</string>
     <string name="test_started">Restarting Spotify…</string>
     <string name="test_busy">A restart is already running.</string>
-    <string name="test_needs_shizuku">Start Shizuku first. Skipping needs it.</string>
+    <string name="test_needs_shizuku">Set up skipping first.</string>
 
     <!-- Activity -->
     <string name="section_activity">Recent activity</string>
@@ -142,13 +142,91 @@
     <string name="notif_channel_status">Protection status</string>
     <string name="notif_channel_alert">Problems</string>
     <string name="notif_title">Hush is on</string>
-    <string name="notif_text">%1$d ad breaks skipped · %2$d muted</string>
+    <plurals name="notif_text">
+        <item quantity="one">%1$d ad break skipped · %2$d muted</item>
+        <item quantity="other">%1$d ad breaks skipped · %2$d muted</item>
+    </plurals>
     <string name="notif_stop">Turn off</string>
     <string name="alert_resume_title">Spotify didn\'t resume</string>
     <string name="alert_resume_text">The ad was removed, but playback didn\'t restart. Tap to open Spotify.</string>
 
     <string name="alert_shizuku_title">Shizuku isn\'t running</string>
-    <string name="alert_shizuku_text">Ads are muted instead of skipped. Shizuku stops when the phone restarts: open it and tap Start.</string>
+    <string name="alert_setup_text">Skipping needs a one-time setup, about two minutes. Tap to start.</string>
+    <string name="alert_shizuku_text">Shizuku stops when the phone restarts: open it and tap Start. Until then, ads are muted.</string>
 
     <string name="vpn_denied">The DNS filter needs VPN permission.</string>
+
+    <!-- Skipping with Hush alone (its own helper) -->
+    <string name="setup_skip">Skipping</string>
+    <string name="setup_skip_new">One-time setup, about two minutes. Until then ads are muted.</string>
+    <string name="setup_skip_pair">Pair Hush with Wireless debugging again to keep skipping.</string>
+    <string name="setup_skip_off">Wireless debugging is off. Turn it on and Hush resumes by itself.</string>
+    <string name="setup_skip_resume">Paused because Wireless debugging is off. Tap Resume.</string>
+    <string name="action_resume">Resume</string>
+    <string name="v_skip_shizuku">Skip (Shizuku)</string>
+
+    <string name="hs_title">Set up skipping</string>
+    <string name="hs_intro">To skip an ad, Hush restarts Spotify. Android allows that only to tools you approve once through Wireless debugging. Hush pairs with it by itself: no other app and no computer needed, and nothing leaves this phone.</string>
+    <string name="hs_done">Skipping is ready. Hush restarts Spotify by itself when an ad starts.</string>
+    <string name="hs_progress">Step %1$d of %2$d</string>
+    <string name="hs_progress_done">All done</string>
+    <string name="hs_dev">Turn on Developer options</string>
+    <string name="hs_dev_desc">In About phone, tap Build number seven times.</string>
+    <string name="hs_pair">Pair Hush</string>
+    <string name="hs_pair_desc">Tap Pair. In Wireless debugging, turn it on, tap Pair device with pairing code, and type the code into Hush\'s notification.</string>
+    <string name="hs_pair_wifi">Connect to Wi-Fi first. Wireless debugging works only on Wi-Fi (no internet needed).</string>
+    <string name="hs_pair_searching">Waiting for the code. In Wireless debugging, tap Pair device with pairing code.</string>
+    <string name="hs_pair_found">Type the six-digit code into Hush\'s notification, or here.</string>
+    <string name="hs_pair_action">Pair</string>
+    <string name="hs_pair_send">Pair</string>
+    <string name="hs_maker">One more switch on this phone</string>
+    <string name="hs_maker_xiaomi">In Developer options, also turn on USB debugging (Security settings).</string>
+    <string name="hs_maker_oppo">In Developer options, turn on Disable permission monitoring.</string>
+    <string name="hs_maker_meizu">In Developer options, turn off Flyme payment protection.</string>
+    <string name="hs_maker_huawei">In Developer options, turn on Allow ADB debugging in charge only mode.</string>
+    <string name="hs_ready">Start skipping</string>
+    <string name="hs_ready_desc">Hush starts its helper and checks that it answers.</string>
+    <string name="hs_ready_desc_off">Turn on Wireless debugging; Hush then starts by itself.</string>
+    <string name="hs_ready_desc_done">Ready. Nothing else to install.</string>
+    <string name="hs_ready_action">Start</string>
+    <string name="hs_note">Pairing gives Hush\'s helper only the few actions it needs (restart Spotify, keep it audible, bring back your app). You can remove Hush under Paired devices in Wireless debugging at any time.</string>
+    <string name="hs_use_shizuku">Use Shizuku instead</string>
+
+    <string name="pair_searching_title">Pairing Hush</string>
+    <string name="pair_searching_text">In Wireless debugging, tap Pair device with pairing code.</string>
+    <string name="pair_found_title">Enter the pairing code</string>
+    <string name="pair_found_text">Type the six-digit code shown in Settings.</string>
+    <string name="pair_enter_code">Enter code</string>
+    <string name="pair_code_hint">Six-digit code</string>
+    <string name="pair_code_length">The code has six digits.</string>
+    <string name="pair_working_title">Pairing…</string>
+    <string name="pair_working_text">Pairing and starting Hush\'s helper.</string>
+    <string name="pair_starting_title">Paired</string>
+    <string name="pair_starting_text">Starting Hush\'s helper…</string>
+    <string name="pair_wrong_title">That code didn\'t work</string>
+    <string name="pair_wrong_text">Check the code in Settings and try again.</string>
+    <string name="pair_failed_title">Pairing didn\'t finish</string>
+    <string name="pair_failed_text">Keep the pairing code open in Settings and try again.</string>
+    <string name="pair_done_title">Skipping is ready</string>
+    <string name="pair_done_text">Hush will skip ads from now on.</string>
+
+    <string name="helper_notice_title">Skipping paused</string>
+    <string name="helper_notice_resume">Wireless debugging was turned off. Tap and Hush turns it back on. Until then, ads are muted.</string>
+    <string name="helper_notice_debugging">Turn on Wireless debugging and Hush resumes by itself. Until then, ads are muted. Tap for the steps.</string>
+    <string name="helper_notice_wifi">Skipping needs Wi-Fi (no internet needed). Hush resumes by itself when Wi-Fi is back. Until then, ads are muted.</string>
+    <string name="helper_notice_pair">Android forgot Hush\'s pairing. Tap to pair again (one code). Until then, ads are muted.</string>
+    <string name="helper_notice_fix">Hush couldn\'t start its helper. Tap to fix. Until then, ads are muted.</string>
+
+    <string name="opt_auto">Restart automatically after a reboot</string>
+    <string name="opt_auto_desc">Off. After a reboot Hush asks you to tap once.</string>
+    <string name="opt_auto_desc_on">On. Hush turns Wireless debugging on for a moment after a reboot.</string>
+    <string name="opt_auto_desc_safe">On. This phone keeps Hush ready with Wireless debugging off, so Hush leaves it off.</string>
+    <string name="opt_auto_desc_needs">On. This phone stops Hush\'s helper when Wireless debugging is off, so Hush leaves it on.</string>
+    <string name="opt_auto_desc_old">Needs Android 13 or later.</string>
+    <string name="auto_title">Restart automatically?</string>
+    <string name="auto_text">After a reboot Android turns Wireless debugging off. With this on, Hush turns it on for a few seconds, starts its helper, and tests once whether this phone keeps the helper running with Wireless debugging off. If it does, Hush keeps it off; if not, Hush leaves it on. Hush never touches USB debugging or Developer options.</string>
+    <string name="auto_turn_on">Turn on</string>
+    <string name="opt_diag">Copy diagnostics</string>
+    <string name="opt_diag_desc">For bug reports: phone model, Android version and Hush\'s state only.</string>
+    <string name="diag_copied">Diagnostics copied.</string>
 </resources>

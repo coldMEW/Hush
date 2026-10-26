@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import io.coldmew.hush.helper.Commands;
 
 // Restart-skip: force-stopping Spotify drops the ad break it holds in memory; a cold start then
 // resumes the queue without it. What this relies on (see docs/HOW-IT-WORKS.md):
@@ -73,11 +74,10 @@ final class Skipper {
 
         boolean screenOn = c.getSystemService(PowerManager.class).isInteractive();
         boolean unlocked = screenOn && !c.getSystemService(KeyguardManager.class).isKeyguardLocked();
-        String stop = "am force-stop " + Shell.arg(Hush.SPOTIFY);
-        String openSpotify = "am start -n " + Shell.arg(launchComponent(c)) + " >/dev/null 2>&1";
-        // The temporary allowlist lets the new Spotify start its playback service from the
-        // background; without it Spotify plays with no notification or lock-screen controls.
-        String allowlist = "cmd deviceidle tempwhitelist -d 30000 " + Shell.arg(Hush.SPOTIFY) + " >/dev/null 2>&1";
+        String spotifyActivity = launchComponent(c);
+        // Every restart also gives Spotify a temporary allowlist entry, which lets the new Spotify
+        // start its playback service from the background; without it Spotify plays with no
+        // notification or lock-screen controls (see Commands).
         // Spotify is started through its media-button receiver, the way a headset button starts it:
         // it resumes playback and posts its notification at once, and in the background it never
         // comes to the screen. The plain activity start (and PLAY once its session settles) is the
@@ -92,9 +92,8 @@ final class Skipper {
         // instant, so the home screen does not show while Spotify restarts, and the shell reports
         // that with OPENED. Otherwise Spotify was playing in the background and stays there.
         Set<Object> old = tokens(c);
-        String out = Shell.sh("R=$(" + RECENT_TOP + "); echo \"$R\"; " + stop + "; case \"$R\" in *=" + Hush.SPOTIFY
-                + "/*) " + openSpotify + "; echo " + OPENED + ";; esac; " + allowlist);
-        boolean spotifyInFront = out.contains(OPENED);
+        String out = Shell.run(Commands.STOP_READ_FRONT, spotifyActivity);
+        boolean spotifyInFront = out.contains(Commands.OPENED);
         String prev = spotifyInFront ? Hush.SPOTIFY : frontPackage(out);
         String where = !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
 
@@ -105,12 +104,13 @@ final class Skipper {
             if (attempt > 1) old = tokens(c);
             boolean viaButton = attempt == 1 && button != null;
             if (viaButton) {   // Spotify plays as soon as it starts here, so the app-ops come first
-                Shell.sh(BackgroundAudio.ALLOW);
+                Shell.run(Commands.ALLOW_AUDIO);
                 pressPlay(c, button);
             } else if (attempt == 1) {   // the app-ops overlap Spotify's start here (~0.1 s)
-                Shell.sh((spotifyInFront ? "" : openSpotify + "; ") + BackgroundAudio.ALLOW);
+                if (spotifyInFront) Shell.run(Commands.ALLOW_AUDIO);
+                else Shell.run(Commands.OPEN_AND_ALLOW, spotifyActivity);
             } else {
-                Shell.sh(stop + "; " + allowlist + "; " + openSpotify + "; " + BackgroundAudio.ALLOW);
+                Shell.run(Commands.RESTART, spotifyActivity);
             }
             MediaController mc = waitSession(c, old, viaButton ? 3000 : 8000);
             log(t0, "attempt " + attempt + (viaButton ? " (button)" : "") + " session=" + (mc != null));
@@ -192,9 +192,9 @@ final class Skipper {
 
     private static void kick(MediaController mc, int n) {
         switch (n % 3) {
-            case 0: Shell.sh("cmd media_session dispatch play"); break;
+            case 0: Shell.run(Commands.MEDIA_PLAY); break;
             case 1: mc.getTransportControls().play(); break;
-            default: Shell.sh("input keyevent 126"); break;
+            default: Shell.run(Commands.KEY_PLAY); break;
         }
     }
 
@@ -215,9 +215,8 @@ final class Skipper {
         }
         log(t0, "context before " + want + " after " + now);
         if (now == null || now.equals(want)) return "";
-        if (!Shell.playable(want)) return ", Spotify switched playlist";
-        Shell.sh("am start -a android.intent.action.VIEW -p " + Shell.arg(Hush.SPOTIFY) + " -d "
-                + Shell.spotifyUri(want) + " >/dev/null 2>&1");
+        if (!Commands.playable(want)) return ", Spotify switched playlist";
+        Shell.run(Commands.OPEN_URI, want);
         if (!spotifyInFront) { sleep(800); restore(c, prev); }
         long end = SystemClock.elapsedRealtime() + 8000;
         while (SystemClock.elapsedRealtime() < end) {
@@ -245,25 +244,20 @@ final class Skipper {
             audio = mutedState();
             if (audio.startsWith("mutedState:op") && repairs < 2) {
                 log(t0, "muted by the system, repairing: " + audio);
-                Shell.sh(BackgroundAudio.ALLOW + "; cmd media_session dispatch pause; sleep 0.3; cmd media_session dispatch play");
+                Shell.run(Commands.REPAIR_MUTE);
                 repairs++;
             }
             sleep(1000);
         }
         if (BackgroundAudio.frozen()) {   // the unfreeze did not hold: try once more
             log(t0, "frozen by the system, unfreezing");
-            Shell.sh(BackgroundAudio.UNFREEZE);
+            Shell.run(Commands.UNFREEZE);
             audio = "frozen";
         }
         return audio;
     }
 
-    private static String mutedState() {
-        String pid = Shell.sh("pidof " + Shell.arg(Hush.SPOTIFY)).split("\\s+")[0];
-        if (!pid.matches("[0-9]+")) return "";
-        return Shell.sh("dumpsys audio | grep -E 'u/pid:[0-9]+/" + pid + " ' | grep 'state:started'"
-                + " | grep -oE 'mutedState:[a-z_]+' | head -1");
-    }
+    private static String mutedState() { return Shell.run(Commands.MUTED_STATE); }
 
     private static String audioNote(String audio) {
         return audio.isEmpty() || audio.equals("mutedState:none") ? "" : " [" + audio + "]";
@@ -324,13 +318,10 @@ final class Skipper {
     // activity. The task line's "A=" field is an affinity, which need not be a package name.
     private static final Pattern FRONT = Pattern.compile("(?:realActivity=|cmp=|I=)([A-Za-z0-9_.]+)/");
 
-    // The most recent task's entry in the recents list: the app on screen (or behind the lock screen).
-    private static final String RECENT_TOP = "dumpsys activity recents | sed -n '/Recent #0/,/Recent #1/p' | head -40";
-    private static final String OPENED = "@@hush-opened-spotify";
+    private static String frontPackage() { return frontPackage(Shell.run(Commands.FRONT)); }
 
-    private static String frontPackage() { return frontPackage(Shell.sh(RECENT_TOP)); }
-
-    // Package of the app in front, from RECENT_TOP's output.
+    // Package of the app in front, from the recents entry Commands.FRONT prints (the most recent
+    // task: the app on screen, or behind the lock screen).
     static String frontPackage(String recentTop) {
         Matcher m = FRONT.matcher(recentTop);
         return m.find() ? m.group(1) : null;
@@ -342,15 +333,13 @@ final class Skipper {
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         ResolveInfo h = c.getPackageManager().resolveActivity(home, 0);
         Intent launch = pkg == null ? null : c.getPackageManager().getLaunchIntentForPackage(pkg);
-        String goHome = "am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1";
         try {
             if (launch == null || launch.getComponent() == null || (h != null && pkg.equals(h.activityInfo.packageName)))
-                Shell.sh(goHome);
-            else   // NEW_TASK | RESET_TASK_IF_NEEDED: resumes the existing task instead of a fresh start
-                Shell.sh("am start -f 0x10200000 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "
-                        + Shell.arg(launch.getComponent().flattenToShortString()) + " >/dev/null 2>&1");
+                Shell.run(Commands.HOME);
+            else
+                Shell.run(Commands.OPEN_APP, launch.getComponent().flattenToShortString());
         } catch (IllegalArgumentException e) {   // unusual component name: use the home screen instead
-            Shell.sh(goHome);
+            Shell.run(Commands.HOME);
         }
     }
 

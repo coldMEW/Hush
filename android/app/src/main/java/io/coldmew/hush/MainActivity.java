@@ -33,6 +33,7 @@ import java.text.DateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import io.coldmew.hush.helper.HushHelper;
 import rikka.shizuku.Shizuku;
 
 // Main screen: master switch with status, setup steps, statistics, ad handling, settings, activity.
@@ -41,7 +42,7 @@ public class MainActivity extends Activity {
 
     private Prefs prefs;
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private View optSleep, statusDetails, setupSection, choiceSkip, choiceMute, choiceOff, optDns;
+    private View optSleep, statusDetails, setupSection, choiceSkip, choiceMute, choiceOff, optDns, optAuto;
     private ImageButton power;
     private TextView statusTitle, statusDesc;
     private TextView statSkipped, statResume, statMuted, statDns;
@@ -55,6 +56,7 @@ public class MainActivity extends Activity {
     private final Shizuku.OnBinderReceivedListener binderUp = () -> ui.post(this::refresh);
     private final Shizuku.OnBinderDeadListener binderDown = () -> ui.post(this::refresh);
     private final Shizuku.OnRequestPermissionResultListener shizukuResult = (code, result) -> ui.post(this::refresh);
+    private final HushHelper.Listener helperChanged = connected -> ui.post(this::refresh);
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -119,9 +121,14 @@ public class MainActivity extends Activity {
             return true;
         });
         optTest.setOnClickListener(v -> {
-            if (!Shell.ready()) { toast(R.string.test_needs_shizuku); Shell.requestPermission(); return; }
+            if (!Shell.ready()) { toast(R.string.test_needs_shizuku); openSkipSetup(); return; }
             toast(Skipper.start(this, true) ? R.string.test_started : R.string.test_busy);
         });
+        optAuto = row(R.id.opt_auto, R.string.opt_auto, R.string.opt_auto_desc);
+        optAuto.setOnClickListener(v -> toggleAutoRestart());
+        View optDiag = row(R.id.opt_diag, R.string.opt_diag, R.string.opt_diag_desc);
+        optDiag.findViewById(R.id.chevron).setVisibility(View.GONE);
+        optDiag.setOnClickListener(v -> copyDiagnostics());
         findViewById(R.id.stats_reset).setOnClickListener(v -> { prefs.resetStats(); Hush.refreshNotification(this); refresh(); });
         findViewById(R.id.events_clear).setOnClickListener(v -> Events.clear(this));
 
@@ -135,6 +142,7 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         Events.listen(refreshEvents);
+        HushHelper.addListener(helperChanged);
         ui.post(ticker);
         if (prefs.enabled()) Hush.applyDns(this);   // e.g. VPN was taken over by another app meanwhile
     }
@@ -142,6 +150,7 @@ public class MainActivity extends Activity {
     @Override protected void onPause() {
         super.onPause();
         Events.unlisten(refreshEvents);
+        HushHelper.removeListener(helperChanged);
         ui.removeCallbacks(ticker);
     }
 
@@ -195,6 +204,9 @@ public class MainActivity extends Activity {
                 .setTitle(R.string.sleep_custom_title)
                 .setView(row)
                 .setPositiveButton(R.string.sleep_custom_start, (d, w) -> {
+                    // A number typed into a picker is taken only when it loses focus; without this,
+                    // typing "30" and pressing Start right away would use the old value.
+                    hours.clearFocus(); minutes.clearFocus(); seconds.clearFocus();
                     int total = hours.getValue() * 3600 + minutes.getValue() * 60 + seconds.getValue();
                     if (total < 1) { Toast.makeText(this, R.string.sleep_custom_zero, Toast.LENGTH_SHORT).show(); return; }
                     SleepTimer.setSeconds(this, total);
@@ -221,6 +233,10 @@ public class MainActivity extends Activity {
 
     private void setMode(String m) {
         prefs.mode(m);
+        // The helper is kept running only for Skip; switching to it starts the helper now, so the
+        // next ad is skipped rather than muted while it starts.
+        if (prefs.enabled() && Prefs.MODE_RESTART.equals(m) && prefs.paired() && HelperControl.supported() && !Shell.ready())
+            HelperControl.ensure(this, true, true);
         AdWatcher.recheck();
         refresh();
     }
@@ -235,11 +251,41 @@ public class MainActivity extends Activity {
         afterTurnOn();
     }
 
-    // Skipping needs Shizuku: ask for its permission if it runs, otherwise show the setup guide.
+    // Skipping needs a backend: Hush's own helper (started at once if Hush is paired), or Shizuku if
+    // it runs and only needs Hush's permission; otherwise the one-time setup.
     private void afterTurnOn() {
         if (!Prefs.MODE_RESTART.equals(prefs.mode()) || Shell.ready()) return;
-        if (Shell.running()) Shell.requestPermission();
-        else startActivity(new Intent(this, ShizukuSetupActivity.class));
+        if (Shell.running() && !prefs.paired()) Shell.requestPermission();
+        else if (prefs.paired() && HelperControl.supported()) HelperControl.ensure(this, true, true);
+        else openSkipSetup();
+    }
+
+    private void openSkipSetup() {
+        startActivity(new Intent(this, HelperControl.supported() ? HelperSetupActivity.class : ShizukuSetupActivity.class));
+    }
+
+    // Opt-in automatic restart after a reboot, explained once before it is turned on.
+    private void toggleAutoRestart() {
+        if (!HelperControl.canToggleDebugging(this)) return;
+        if (prefs.autoRestart()) { HelperControl.autoRestartChanged(this, false); refresh(); return; }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.auto_title)
+                .setMessage(R.string.auto_text)
+                .setPositiveButton(R.string.auto_turn_on, (d, w) -> { HelperControl.autoRestartChanged(this, true); refresh(); })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    // Anonymous: maker, model family, Android version, Hush version and state. Nothing personal.
+    private void copyDiagnostics() {
+        String v = "";
+        try { v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (PackageManager.NameNotFoundException ignored) {}
+        String report = "Hush " + v + "\nphone: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE
+                + " (API " + Build.VERSION.SDK_INT + ")\nmode: " + prefs.mode() + ", on: " + prefs.enabled()
+                + "\n" + HelperControl.diagnostics(this);
+        android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Hush diagnostics", report));
+        if (Build.VERSION.SDK_INT < 33) toast(R.string.diag_copied);   // Android 13+ shows its own confirmation
     }
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
@@ -278,7 +324,7 @@ public class MainActivity extends Activity {
         boolean shizuku = Shell.ready();
         if (shizuku && !shizukuSeen) BackgroundAudio.apply(this);
         shizukuSeen = shizuku;
-        if (shizuku) Hush.clearShizukuAlert(this);
+        if (shizuku) Hush.clearSkipAlert(this);
         boolean dnsRunning = DnsVpnService.running;
         String m = prefs.mode();
         boolean skipMode = Prefs.MODE_RESTART.equals(m), muteMode = Prefs.MODE_MUTE.equals(m), offMode = Prefs.MODE_OFF.equals(m);
@@ -303,7 +349,8 @@ public class MainActivity extends Activity {
         if (on) {
             value(R.id.st_detect, offMode ? R.string.v_off : listener ? R.string.v_active : R.string.v_no_access,
                     offMode ? R.color.neutral : listener ? R.color.good : R.color.bad);
-            value(R.id.st_skip, offMode ? R.string.v_off : muteMode ? R.string.v_mute : shizuku ? R.string.v_skip : R.string.v_mute_fallback,
+            value(R.id.st_skip, offMode ? R.string.v_off : muteMode ? R.string.v_mute : !shizuku ? R.string.v_mute_fallback
+                            : HushHelper.ready() ? R.string.v_skip : R.string.v_skip_shizuku,
                     offMode ? R.color.neutral : skipMode && !shizuku ? R.color.warn : R.color.good);
             value(R.id.st_dns, !prefs.dns() ? R.string.v_off : dnsRunning ? R.string.v_running : R.string.v_stopped,
                     !prefs.dns() ? R.color.neutral : dnsRunning ? R.color.good : R.color.warn);
@@ -317,6 +364,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 30) optDns.setStateDescription(getString(prefs.dns() ? R.string.state_on : R.string.state_off));
 
         ((TextView) optSleep.findViewById(R.id.summary)).setText(SleepTimer.describe(this));
+        renderAutoRestart();
 
         // Statistics
         long skipped = prefs.get(Prefs.SKIPPED);
@@ -380,15 +428,7 @@ public class MainActivity extends Activity {
                 Intent consent = VpnService.prepare(this);
                 if (consent != null) startActivityForResult(consent, REQ_VPN_DNS);
             });
-        if (Prefs.MODE_RESTART.equals(prefs.mode()) && !shizuku) {
-            int desc = !Shell.installed(this) ? R.string.setup_shizuku_missing
-                    : !Shell.running() ? R.string.setup_shizuku_stopped : R.string.setup_shizuku_permission;
-            int action = !Shell.installed(this) ? R.string.action_set_up : !Shell.running() ? R.string.action_open : R.string.action_allow;
-            setupRow(R.string.setup_shizuku, desc, action, v -> {
-                if (Shell.running() && !Shell.ready()) Shell.requestPermission();
-                else startActivity(new Intent(this, ShizukuSetupActivity.class));
-            });
-        }
+        if (Prefs.MODE_RESTART.equals(prefs.mode()) && !shizuku) renderSkipSetup();
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             setupRow(R.string.setup_notifications, R.string.setup_notifications_desc, R.string.action_allow,
                     v -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF));
@@ -396,6 +436,54 @@ public class MainActivity extends Activity {
             setupRow(R.string.setup_battery, R.string.setup_battery_desc, R.string.action_allow,
                     v -> open(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))));
         setupSection.setVisibility(setupList.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+    }
+
+    // Skipping is not ready. A Shizuku user who has not paired Hush keeps the Shizuku steps; a paired
+    // Hush resumes with one tap (or by itself once Wireless debugging is on); everyone else gets the
+    // one-time setup. Android 8-10 have no Wireless debugging: Shizuku only.
+    private void renderSkipSetup() {
+        boolean shizukuUser = Shell.installed(this) && !prefs.paired();
+        if (!HelperControl.supported() || shizukuUser && Shell.running()) {
+            int desc = !Shell.installed(this) ? R.string.setup_shizuku_missing
+                    : !Shell.running() ? R.string.setup_shizuku_stopped : R.string.setup_shizuku_permission;
+            int action = !Shell.installed(this) ? R.string.action_set_up : !Shell.running() ? R.string.action_open : R.string.action_allow;
+            setupRow(R.string.setup_shizuku, desc, action, v -> {
+                if (Shell.running() && !Shell.shizukuReady()) Shell.requestPermission();
+                else startActivity(new Intent(this, ShizukuSetupActivity.class));
+            });
+        } else if (prefs.paired()) {
+            boolean tap = HelperControl.canToggleDebugging(this) || HelperControl.debuggingOn(this);
+            setupRow(R.string.setup_skip, tap ? R.string.setup_skip_resume : R.string.setup_skip_off,
+                    tap ? R.string.action_resume : R.string.action_open, v -> {
+                        if (tap) { v.setEnabled(false); HelperControl.ensure(this, true, true); }
+                        else openSkipSetup();
+                    });
+        } else {
+            boolean again = HelperControl.lastResult() == HelperControl.Result.NOT_PAIRED;
+            setupRow(R.string.setup_skip, again ? R.string.setup_skip_pair : R.string.setup_skip_new, R.string.action_set_up,
+                    v -> openSkipSetup());
+        }
+    }
+
+    // "Restart automatically after a reboot": shown once Hush is paired; describes the per-phone result.
+    private void renderAutoRestart() {
+        boolean show = HelperControl.supported() && prefs.paired();
+        int vis = show ? View.VISIBLE : View.GONE;
+        optAuto.setVisibility(vis);
+        findViewById(R.id.opt_auto_divider).setVisibility(vis);
+        if (!show) return;
+        boolean can = HelperControl.canToggleDebugging(this), on = prefs.autoRestart() && can;
+        String test = prefs.phoneTest();
+        int desc = !can ? R.string.opt_auto_desc_old : !on ? R.string.opt_auto_desc
+                : Prefs.TEST_SAFE.equals(test) ? R.string.opt_auto_desc_safe
+                : Prefs.TEST_NEEDS_ON.equals(test) ? R.string.opt_auto_desc_needs : R.string.opt_auto_desc_on;
+        ((TextView) optAuto.findViewById(R.id.summary)).setText(desc);
+        Switch s = optAuto.findViewById(R.id.toggle);
+        s.setChecked(on);
+        s.setEnabled(can);
+        optAuto.setEnabled(can);
+        optAuto.setAlpha(can ? 1f : 0.5f);
+        if (Build.VERSION.SDK_INT >= 30) optAuto.setStateDescription(getString(on ? R.string.state_on : R.string.state_off));
     }
 
     private void setupRow(int title, int desc, int action, View.OnClickListener click) {

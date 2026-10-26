@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Set up skipping with Hush alone: Developer options, pairing with Wireless debugging (the code
+     is typed into Hush's notification), an extra step on some phones, and the result. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="32dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/back"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_ripple_round"
+                android:contentDescription="@string/back"
+                android:src="@drawable/ic_back" />
+
+            <TextView
+                style="@style/Text.AppTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:accessibilityHeading="true"
+                android:text="@string/hs_title"
+                tools:targetApi="28" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/intro"
+            style="@style/Text.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="4dp"
+            android:paddingBottom="8dp"
+            android:text="@string/hs_intro" />
+
+        <TextView
+            android:id="@+id/progress"
+            style="@style/Text.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite"
+            android:fontFamily="sans-serif-medium"
+            android:paddingHorizontal="4dp"
+            android:paddingBottom="12dp"
+            android:textColor="@color/accent_text" />
+
+        <LinearLayout
+            android:id="@+id/steps"
+            style="@style/Card"
+            android:orientation="vertical">
+
+            <include android:id="@+id/step_dev" layout="@layout/row_setup" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/step_pair" layout="@layout/row_setup" />
+
+            <!-- Shown while the pairing dialog is open: typing the code here works in split screen,
+                 or when notifications are off. -->
+            <LinearLayout
+                android:id="@+id/code_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="20dp"
+                android:paddingBottom="12dp"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/code"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:autofillHints="oneTimeCode"
+                    android:hint="@string/pair_code_hint"
+                    android:imeOptions="actionDone"
+                    android:inputType="number"
+                    android:maxLength="6"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/text_dim" />
+
+                <Button
+                    android:id="@+id/code_send"
+                    style="@style/FilledButton"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/hs_pair_send" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/maker_divider"
+                style="@style/Divider"
+                android:visibility="gone" />
+
+            <include
+                android:id="@+id/step_maker"
+                layout="@layout/row_setup"
+                android:visibility="gone" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/step_ready" layout="@layout/row_setup" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/Text.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="4dp"
+            android:paddingTop="16dp"
+            android:text="@string/hs_note" />
+
+        <TextView
+            android:id="@+id/use_shizuku"
+            style="@style/TextButton"
+            android:layout_marginTop="4dp"
+            android:text="@string/hs_use_shizuku" />
+    </LinearLayout>
+</ScrollView>

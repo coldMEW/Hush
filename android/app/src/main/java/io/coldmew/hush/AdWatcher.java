@@ -16,7 +16,7 @@ import java.util.Map;
 
 // Watches Spotify's media session (notification access is what lets an app read other apps'
 // sessions). When Spotify reports an ad, the break is skipped by restarting Spotify (Skipper), or
-// muted when Shizuku is unavailable, the mode is "mute", or a skip just failed.
+// muted when skipping is not ready (no helper or Shizuku), the mode is "mute", or a skip just failed.
 public class AdWatcher extends NotificationListenerService {
     // Every Spotify ad carries a media ID of this form, whatever its title or language.
     static final String AD_ID = "spotify:ad:";
@@ -51,8 +51,15 @@ public class AdWatcher extends NotificationListenerService {
         MediaSessionManager msm = getSystemService(MediaSessionManager.class);
         ComponentName me = new ComponentName(this, AdWatcher.class);
         sessionsListener = this::onSessions;
-        msm.addOnActiveSessionsChangedListener(sessionsListener, me);
-        onSessions(msm.getActiveSessions(me));
+        try {
+            msm.addOnActiveSessionsChangedListener(sessionsListener, me);
+            onSessions(msm.getActiveSessions(me));
+        } catch (SecurityException e) {
+            // Notification access was turned off at this very moment: Android still delivers the
+            // connect, but sessions may no longer be read. Not an error; the app shows the setup step.
+            sessionsListener = null;
+            if (instance == this) instance = null;
+        }
     }
 
     @Override public void onListenerDisconnected() {
@@ -200,8 +207,8 @@ public class AdWatcher extends NotificationListenerService {
             p.mutedByUs(true);
             p.add(Prefs.MUTED, 1);
             boolean noShizuku = skipMode && !Shell.ready();
-            Events.add(this, Events.MUTE, "Ad muted" + (!skipMode ? "" : noShizuku ? " (Shizuku not running)" : " (skip failed)"));
-            if (noShizuku) Hush.shizukuAlert(this);
+            Events.add(this, Events.MUTE, "Ad muted" + (!skipMode ? "" : noShizuku ? " (skipping not ready)" : " (skip failed)"));
+            if (noShizuku) Hush.skipAlert(this);
             Hush.refreshNotification(this);
         }
     }

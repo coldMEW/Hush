@@ -42,6 +42,7 @@ public class ShizukuSetupActivity extends Activity {
                 open(new Intent(Intent.ACTION_VIEW, Uri.parse(DOWNLOAD)));
         });
         stepDev = step(R.id.step_dev, R.string.sz_dev, R.string.sz_dev_desc, R.string.action_open, v -> {
+            new Prefs(this).devStep(true);   // ticked when the user comes back (see refresh)
             if (!open(new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS))) open(new Intent(Settings.ACTION_SETTINGS));
         });
         stepStart = step(R.id.step_start, R.string.sz_start,
@@ -70,7 +71,11 @@ public class ShizukuSetupActivity extends Activity {
 
     private void refresh() {
         boolean installed = Shell.installed(this);
-        boolean dev = Settings.Global.getInt(getContentResolver(), Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1;
+        // Newer Android versions report Developer options and USB debugging as off to apps, so the
+        // step also counts as done once the user went through it.
+        boolean dev = Settings.Global.getInt(getContentResolver(), Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
+                || Settings.Global.getInt(getContentResolver(), Settings.Global.ADB_ENABLED, 0) == 1
+                || new Prefs(this).devStep();
         boolean running = Shell.running();
         boolean ready = Shell.ready();
         // A running Shizuku implies the earlier steps were done.
@@ -81,7 +86,7 @@ public class ShizukuSetupActivity extends Activity {
         if (running && !ready && !asked) { asked = true; Shell.requestPermission(); }
         if (ready) {
             ((TextView) findViewById(R.id.intro)).setText(R.string.sz_done);
-            Hush.clearShizukuAlert(this);
+            Hush.clearSkipAlert(this);
         }
     }
 

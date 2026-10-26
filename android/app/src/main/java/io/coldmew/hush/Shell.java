@@ -5,14 +5,15 @@ import android.util.Log;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
-import java.util.regex.Pattern;
+import io.coldmew.hush.helper.Commands;
+import io.coldmew.hush.helper.HushHelper;
 import rikka.shizuku.Shizuku;
 
-// Shell commands with adb (shell user) privileges, through Shizuku. Everything that is not a
-// constant must go through arg(), which only lets package/component names through.
+// Privileged commands (adb shell user rights). Only the commands in Commands can be run. Preferred
+// backend is Hush's own helper; if it is not connected (or a call does not get through), Shizuku
+// runs the very same command line.
 final class Shell {
     static final String SHIZUKU = "moe.shizuku.privileged.api";
-    private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9_.$/]{1,255}");
 
     private Shell() {}
 
@@ -21,41 +22,41 @@ final class Shell {
         catch (PackageManager.NameNotFoundException e) { return false; }
     }
 
+    // Shizuku is running (whether or not Hush may use it).
     static boolean running() {
         try { return Shizuku.pingBinder(); } catch (Throwable e) { return false; }
     }
 
+    // True if any backend can run privileged commands (Hush's helper or Shizuku).
     static boolean ready() {
+        return HushHelper.ready() || shizukuReady();
+    }
+
+    static boolean shizukuReady() {
         try {
             return Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
         } catch (Throwable e) { return false; }
     }
 
     static void requestPermission() {
-        try { if (running() && !ready()) Shizuku.requestPermission(7); } catch (Throwable ignored) {}
+        try { if (running() && !shizukuReady()) Shizuku.requestPermission(7); } catch (Throwable ignored) {}
     }
 
-    // A package or component name as a single-quoted shell word. Anything else is rejected, so a
-    // hostile name (e.g. another app's activity) can never inject a command.
-    static String arg(String s) {
-        if (s == null || !SAFE.matcher(s).matches()) throw new IllegalArgumentException("unsafe shell argument");
-        return "'" + s + "'";
+    static String run(int action) { return run(action, null); }
+
+    // Runs one command and returns its output ("" if no backend is available or it failed). Throws
+    // IllegalArgumentException for an argument that is not allowed.
+    static String run(int action, String arg) {
+        String out = HushHelper.run(action, arg);
+        if (out != null) return out;
+        String cmd = Commands.build(action, arg);
+        return shizukuReady() ? sh(cmd) : "";
     }
 
-    private static final Pattern PLAYABLE = Pattern.compile("spotify:(playlist|album):[A-Za-z0-9]{1,64}");
-
-    // A Spotify playlist or album URI as a single-quoted shell word; anything else is rejected.
-    static String spotifyUri(String s) {
-        if (s == null || !PLAYABLE.matcher(s).matches()) throw new IllegalArgumentException("unsupported URI");
-        return "'" + s + ":play'";
-    }
-
-    static boolean playable(String s) { return s != null && PLAYABLE.matcher(s).matches(); }
-
-    // Runs `sh -c cmd` and returns stdout ("" on failure). Shizuku.newProcess is hidden from the
-    // public API but kept for compatibility (Shizuku-API issue #276), so it is called reflectively.
-    static String sh(String cmd) {
-        if (!ready()) return "";
+    // Runs `sh -c cmd` through Shizuku and returns stdout ("" on failure). Shizuku.newProcess is
+    // hidden from the public API but kept for compatibility (Shizuku-API issue #276), so it is
+    // called reflectively.
+    private static String sh(String cmd) {
         try {
             Method m = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
             m.setAccessible(true);

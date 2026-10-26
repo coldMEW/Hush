@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -8,6 +9,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Finding Wireless debugging on this phone, and waiting for Wi-Fi after a reboot. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Granted only by Hush's own helper (adb), never asked for: lets Hush switch Wireless
+         debugging (adb_wifi_enabled) on and off after a reboot. Nothing else is written. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <queries>
         <package android:name="com.spotify.music" />
@@ -58,6 +66,20 @@
             android:label="@string/sz_title"
             android:parentActivityName=".MainActivity" />
 
+        <activity
+            android:name=".HelperSetupActivity"
+            android:exported="false"
+            android:label="@string/hs_title"
+            android:launchMode="singleTop"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Runs only while the user pairs Hush in Settings (a few minutes at most). -->
+        <service
+            android:name=".PairingService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
         <service
             android:name=".DnsVpnService"
             android:exported="false"
@@ -93,6 +115,16 @@
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- Receives the binder from Hush's own privileged helper (v2). Guarded so only a
+             shell/privileged caller (the helper, uid 2000) can reach it. -->
+        <provider
+            android:name=".helper.HelperProvider"
+            android:authorities="${applicationId}.helper"
             android:enabled="true"
             android:exported="true"
             android:multiprocess="false"

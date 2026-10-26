@@ -190,11 +190,21 @@ final class SleepTimer {
                 am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE));
                 am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE));
             }
-            // In case a song start overtakes the pause; short, so a deliberate play is not undone.
-            for (long ms : new long[]{1500, 4000}) main.postDelayed(() -> pauseIfPlaying(c), ms);
+            // In case a song start overtakes the pause: pause again until Spotify has reported
+            // "paused" once. After that, playing again is the user's choice and is left alone.
+            main.postDelayed(() -> confirmPaused(c, SystemClock.uptimeMillis() + 4000, gen), 250);
         }
         Events.add(c, Events.INFO, "Sleep timer: Spotify paused (" + why + ")");
         Hush.refreshNotification(c);
+    }
+
+    private static void confirmPaused(Context c, long until, int gen) {
+        if (gen != generation) return;   // a new timer was set meanwhile
+        int st = spotifyState(c);
+        if (st == android.media.session.PlaybackState.STATE_PAUSED
+                || st == android.media.session.PlaybackState.STATE_STOPPED || st == -1) return;   // done
+        if (st == android.media.session.PlaybackState.STATE_PLAYING) pauseIfPlaying(c);
+        if (SystemClock.uptimeMillis() < until) main.postDelayed(() -> confirmPaused(c, until, gen), 250);
     }
 
     private static void pauseIfPlaying(Context c) {

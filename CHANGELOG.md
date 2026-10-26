@@ -4,6 +4,45 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-10-26
+
+### Added
+- Hush no longer needs Shizuku. It pairs with Android's Wireless debugging by itself (you type the
+  six-digit code into Hush's notification, once) and starts its own small helper. The helper
+  answers only Hush and can do only the few things skipping needs. Android 11 or newer, on Wi-Fi.
+- Guided setup for pairing, with the one extra switch some phone makers need shown only on those
+  phones (Xiaomi/Redmi/POCO, OPPO/OnePlus/realme, Meizu, Huawei/Honor).
+- Self-healing: if the helper stops, Hush starts it again. If it can't (for example Wireless
+  debugging was turned off), Hush mutes ads and shows one "Skipping paused" notification that says
+  why; a tap resumes. Skipping never stops without you being told.
+- After a reboot, one tap on Hush's notification turns Wireless debugging back on and resumes
+  skipping. Optional: **Restart automatically after a reboot** does this by itself (Android 13+).
+  With it on, Hush tests once whether the phone keeps its helper running with Wireless debugging
+  off, keeps it off if so, and shows the result in settings. USB debugging and Developer options
+  are never touched.
+- **Copy diagnostics** for bug reports (nothing about what you listen to).
+
+### Changed
+- Ads stop sooner: Spotify is stopped 30 to 90 ms after an ad is detected (was 50 to 105 ms),
+  because the helper calls Android directly instead of starting a shell for the first step.
+- Shizuku is still supported: Hush uses it when its own helper is not set up, and on Android 8 to 10.
+- Switching "When an ad plays" back to **Skip** starts the helper right away, so the next ad is
+  skipped, not muted.
+- If Hush's helper can't start, the reason is shown in **Recent activity**.
+- The DNS filter (**Block ad servers**) is off for new installs: skipping doesn't need it, and it
+  no longer asks for VPN permission during setup or takes the place of another VPN. Turn it on in
+  settings to block video ads. Updating from 1.0.x keeps it as it was.
+
+### Fixed
+- On some Android versions the Developer options step of the setup never got ticked, because
+  Android hides that setting from apps.
+- Hush could crash if notification access was turned off at the moment it connected.
+- Custom sleep timer: a number typed into the hours, minutes or seconds field was ignored if Start
+  was pressed while the keyboard was still open.
+- Sleep timer: pressing play within about 4 seconds after the timer paused Spotify could be undone
+  by Hush. Hush now stops checking as soon as Spotify has paused.
+- The status notification said "1 ad breaks skipped".
+
 ## [1.0.3] - 2026-10-24
 
 ### Changed
@@ -75,6 +114,7 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[2.0.0]: https://github.com/coldMEW/Hush/releases/tag/v2.0.0
 [1.0.3]: https://github.com/coldMEW/Hush/releases/tag/v1.0.3
 [1.0.2]: https://github.com/coldMEW/Hush/releases/tag/v1.0.2
 [1.0.1]: https://github.com/coldMEW/Hush/releases/tag/v1.0.1
