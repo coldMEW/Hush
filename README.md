@@ -7,6 +7,7 @@
 **Ad-free listening for Spotify on Android — no root, no modified Spotify app.**
 
 [![Release](https://img.shields.io/github/v/release/coldMEW/Hush?color=E26041&label=release)](https://github.com/coldMEW/Hush/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/coldMEW/Hush/total?color=E26041&label=downloads)](https://github.com/coldMEW/Hush/releases)
 [![Build](https://github.com/coldMEW/Hush/actions/workflows/build.yml/badge.svg)](https://github.com/coldMEW/Hush/actions/workflows/build.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
