@@ -285,6 +285,8 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 - [x] v1.0.2 — no silent playback when Android freezes the restarted Spotify
 - [x] v1.0.3 — Spotify stays off screen during a skip, and its controls come back right away
 - [x] v2.0.0 — one app: no Shizuku needed, self-healing, optional automatic restart after a reboot
+- [x] v2.0.1 — fixes for playlist switches during an ad, the end-of-song timer, recovery when Wi-Fi
+  is back, and smoother pairing
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing
