@@ -66,15 +66,15 @@ flowchart LR
 ```
 
 **Every ad break.** Spotify keeps an ad break only in memory, so a cold restart resumes the queue
-at the next song.
+at the next song. Spotify is started again the way a headset play button starts it: no screen
+appears, and a locked phone stays locked.
 
 ```mermaid
 flowchart LR
-    A["Spotify media session"] -->|"spotify:ad: ID<br/>or ADVERTISEMENT flag"| B("Hush detects the ad")
+    A["Spotify<br/>plays an ad"] -->|"ad ID or<br/>ad flag"| B("Hush<br/>detects it")
     B --> C["Helper stops Spotify<br/>(30–90 ms)"]
-    C --> D["Spotify restarts in the background<br/>like a headset play button,<br/>no screen, phone stays locked"]
-    D --> E["New session ready,<br/>Hush presses play"]
-    E --> F["Music resumes<br/>without the ad break"]
+    C --> D["Spotify restarts<br/>in the background"]
+    D --> E["Music resumes,<br/>ad break gone"]
 ```
 
 **Looks after itself.** Skipping never stops without you being told.
