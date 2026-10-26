@@ -215,7 +215,7 @@
     <string name="helper_notice_title">Skipping paused</string>
     <string name="helper_notice_resume">Wireless debugging was turned off. Tap and Hush turns it back on. Until then, ads are muted.</string>
     <string name="helper_notice_debugging">Turn on Wireless debugging and Hush resumes by itself. Until then, ads are muted. Tap for the steps.</string>
-    <string name="helper_notice_wifi">Skipping needs Wi-Fi (no internet needed). Hush resumes by itself when Wi-Fi is back. Until then, ads are muted.</string>
+    <string name="helper_notice_wifi">Hush needs Wi-Fi to start skipping again (no internet needed). It tries again as soon as Wi-Fi is back. Until then, ads are muted.</string>
     <string name="helper_notice_pair">Android forgot Hush\'s pairing. Tap to pair again (one code). Until then, ads are muted.</string>
     <string name="helper_notice_fix">Hush couldn\'t start its helper. Tap to fix. Until then, ads are muted.</string>
 

@@ -11,6 +11,15 @@ All notable changes to Hush are documented here. The format follows
   the new playlist's first song. Hush now remembers the new playlist right away.
 - With the sleep timer set to **End of song**, an ad right after the song was skipped and the next
   song played. Hush now pauses at the end of the song as expected.
+- If Hush's helper stopped while the phone was not on Wi-Fi, skipping stayed paused after Wi-Fi came
+  back. Hush now tries again by itself as soon as Wi-Fi is back.
+- Pairing: if Hush did not notice the pairing code dialog right away, the **Pair** button stayed
+  disabled until the search gave up. Pair now stays available (tapping it searches again), the
+  search retries by itself, and it always ends after 3 minutes.
+- After pairing, opening Hush from its icon could show the Settings page instead of Hush.
+- A brief connection hiccup right after Wireless debugging was switched on could make Hush ask to
+  pair again. Hush now tries once more before deciding the pairing is gone.
+- After a lost pairing, the "ads are muted" notice now says that the pairing has to be renewed.
 
 ### Changed
 - Clearer wording: Wi-Fi is needed only to pair and to start Hush's helper; skipping also works on

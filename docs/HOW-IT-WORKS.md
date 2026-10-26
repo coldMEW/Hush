@@ -145,7 +145,8 @@ pairing.
 **Starting the helper.** Hush finds the debugging port (`_adb-tls-connect._tcp`), connects to
 `127.0.0.1` with its key and runs one command:
 
-    CLASSPATH=<Hush's APK> setsid app_process /system/bin --nice-name=hush_helper         io.coldmew.hush.helper.Helper --token=… --uid=… --apk=… --authority=…
+    CLASSPATH=<Hush's APK> setsid app_process /system/bin --nice-name=hush_helper \
+        io.coldmew.hush.helper.Helper --token=… --uid=… --apk=… --authority=…
 
 `setsid` detaches the helper from the adb session, so it keeps running when the connection
 closes: its parent becomes init and, like Shizuku's server, it inherits adbd's `oom_score_adj`
@@ -161,6 +162,9 @@ unlocked following a reboot (Android starts no apps before the first unlock).
 ads are muted and one notification says why. Tapping it resumes: on Android 13+ Hush turns
 Wireless debugging on itself (with `WRITE_SECURE_SETTINGS`, which the helper grants it once), so
 skipping is back in about 1 s (up to about 6 s if Wireless debugging takes a moment to start).
+Without Wi-Fi, Hush waits and tries again by itself as soon as Wi-Fi is back (about 4 to 7 s).
+A connection refused right after Wireless debugging was switched on is tried once more before
+Hush concludes that the pairing is gone.
 
 **After a reboot.** Android turns Wireless debugging off when the phone restarts (some versions
 turn it back on by themselves shortly after boot; Hush then resumes silently). By default Hush

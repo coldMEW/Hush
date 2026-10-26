@@ -83,7 +83,7 @@ flowchart TD
     X{"Helper running?"} -->|yes| S["Ads are skipped"]
     X -->|no| R["Hush starts it again (about 1.5 s)"]
     R -->|"can't: Wireless debugging off,<br/>no Wi-Fi, pairing forgotten"| M["Ads are muted, and one<br/>Skipping paused notice says why"]
-    M -->|"tap it, or automatic<br/>after a reboot"| R
+    M -->|"tap it, or by itself after a<br/>reboot or when Wi-Fi is back"| R
 ```
 
 The tricky parts (Spotify's media-button intent being cancelled by a force-stop, keeping the
@@ -143,9 +143,9 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
       About phone). Come back to Hush.
    2. **Pair Hush:** tap **Pair**. Hush opens Developer options. Turn on **Wireless debugging**
       (allow it on your Wi-Fi), open it and tap **Pair device with pairing code**.
-   3. Pull down the notification shade. In Hush's notification **Enter the pairing code**, tap
-      **Enter code** and type the six digits shown in Settings. Hush pairs and starts its helper;
-      the notification changes to **Skipping is ready**.
+   3. Pull down the notification shade. In Hush's notification **Enter the pairing code** (expand
+      it if it shows only its title), tap **Enter code** and type the six digits shown in Settings.
+      Hush pairs and starts its helper; the notification changes to **Skipping is ready**.
 
    Some phone makers need one extra switch in Developer options; Hush shows that step only on
    those phones. Already using Shizuku? Hush uses it too, and you can skip this.
@@ -185,17 +185,18 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
 <summary><b>Ads are muted instead of skipped</b></summary>
 
 Skipping is not ready: usually Wireless debugging is off after a reboot, or Hush had to start its
-helper while the phone was not on Wi-Fi (it resumes as soon as Wi-Fi is back). Tap Hush's notification, or open Hush — the status card says what is missing. If Hush asks to
-pair again, Android has forgotten the pairing (it does that for pairings unused for 7 days unless
-**Disable adb authorization timeout** is on in Developer options).
+helper while the phone was not on Wi-Fi (it resumes as soon as Wi-Fi is back). Tap Hush's
+notification, or open Hush — the status card says what is missing. If Hush asks to pair again,
+Android has forgotten the pairing (it does that for pairings unused for 7 days unless **Disable adb
+authorization timeout** is on in Developer options).
 </details>
 
 <details>
 <summary><b>Copy diagnostics</b></summary>
 
 Settings → **Copy diagnostics** copies a short report (phone maker and model, Android version,
-how Hush skips, the last helper errors) for a bug report. It has nothing about what you listen to, and Hush never
-sends it anywhere by itself.
+how Hush skips, the last helper errors) for a bug report. It has nothing about what you listen
+to, and Hush never sends it anywhere by itself.
 </details>
 
 <details>

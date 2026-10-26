@@ -28,8 +28,10 @@ VPN. It is built so that neither can be turned against the phone.
   whether Spotify is muted or frozen, grant Hush `WRITE_SECURE_SETTINGS`) and builds every command
   itself from an action number and validated arguments.
 - `WRITE_SECURE_SETTINGS` is granted only to Hush, and Hush uses it only to switch Wireless
-  debugging (`adb_wifi_enabled`) on after a reboot and, if you turned on automatic restart and
-  the phone passed the test, off again. It never changes USB debugging or Developer options.
+  debugging (`adb_wifi_enabled`): on, when its helper has to be started again (after a reboot,
+  when Wi-Fi is back, or when you tap "Skipping paused"), and, if you turned on automatic restart
+  and the phone passed the test, off again right after. It never changes USB debugging or
+  Developer options.
 - The helper exits when Hush is uninstalled. You can revoke Hush's pairing at any time under
   Wireless debugging → Paired devices.
 - Limitation: Android's adb daemon writes the command that starts the helper, token included, to

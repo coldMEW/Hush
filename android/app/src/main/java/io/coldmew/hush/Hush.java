@@ -124,7 +124,8 @@ final class Hush {
         boolean shizuku = Shell.installed(c);
         Intent open = shizuku ? c.getPackageManager().getLaunchIntentForPackage(Shell.SHIZUKU) : null;
         if (open == null) open = new Intent(c, HelperControl.supported() ? HelperSetupActivity.class : ShizukuSetupActivity.class);
-        String text = c.getString(shizuku ? R.string.alert_shizuku_text : R.string.alert_setup_text);
+        boolean lostPairing = HelperControl.lastResult() == HelperControl.Result.NOT_PAIRED;   // was paired before
+        String text = c.getString(shizuku ? R.string.alert_shizuku_text : lostPairing ? R.string.helper_notice_pair : R.string.alert_setup_text);
         PendingIntent pi = PendingIntent.getActivity(c, 3, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         c.getSystemService(NotificationManager.class).notify(NOTIF_SHIZUKU, new Notification.Builder(c, CH_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_hush).setColor(c.getColor(R.color.accent))

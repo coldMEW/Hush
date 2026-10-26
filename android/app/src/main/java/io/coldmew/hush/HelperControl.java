@@ -171,17 +171,23 @@ final class HelperControl {
         }
         // The connection stays open until the helper has handed over its Binder: closing it right
         // after the start command can end the helper before it has detached from the session.
-        try (AdbConnection adb = AdbConnection.open(AdbKey.get(c), "127.0.0.1", port)) {
-            adb.shell(HushHelper.startCommand(c));
-            long end = SystemClock.elapsedRealtime() + 8000;
-            while (!HushHelper.ready() && SystemClock.elapsedRealtime() < end) SystemClock.sleep(50);
-        } catch (AdbConnection.NotPairedException e) {
-            new Prefs(c).paired(false);
-            lastError = "not paired";
-            return Result.NOT_PAIRED;
-        } catch (Exception e) {
-            lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
-            return Result.FAILED;
+        for (int attempt = 1; ; attempt++) {
+            try (AdbConnection adb = AdbConnection.open(AdbKey.get(c), "127.0.0.1", port)) {
+                adb.shell(HushHelper.startCommand(c));
+                long end = SystemClock.elapsedRealtime() + 8000;
+                while (!HushHelper.ready() && SystemClock.elapsedRealtime() < end) SystemClock.sleep(50);
+                break;
+            } catch (AdbConnection.NotPairedException e) {
+                // Right after Wireless debugging is switched on, adbd can drop the first connection
+                // while it starts up. Only a second refusal means the pairing is really gone.
+                if (attempt < 2) { SystemClock.sleep(1500); continue; }
+                new Prefs(c).paired(false);
+                lastError = "not paired";
+                return Result.NOT_PAIRED;
+            } catch (Exception e) {
+                lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
+                return Result.FAILED;
+            }
         }
         if (!HushHelper.ready()) { lastError = "helper did not connect"; return Result.FAILED; }
         new Prefs(c).paired(true);
@@ -326,6 +332,17 @@ final class HelperControl {
         else if (Prefs.TEST_SAFE.equals(p.phoneTest())) worker.execute(() -> keepDebuggingOff(c));
     }
 
+    // Wi-Fi is back after the helper could not start without it (Android starts Wireless debugging
+    // only on Wi-Fi): try again, as after a boot.
+    private static void onWifiBack(Context c) {
+        if (!wanted(c) || HushHelper.ready()) return;
+        Prefs p = new Prefs(c);
+        if (p.autoRestart() && canToggleDebugging(c)) { autoStart(c); return; }
+        SystemClock.sleep(3000);   // Wireless debugging, if on, needs a moment on the new network
+        Result r = start(c, false);
+        if (r != Result.READY) notifyStopped(c, r);
+    }
+
     private static synchronized void waitForWifi(Context c) {
         if (wifiWait != null) return;
         ConnectivityManager cm = c.getSystemService(ConnectivityManager.class);
@@ -336,7 +353,7 @@ final class HelperControl {
                     try { cm.unregisterNetworkCallback(this); } catch (RuntimeException ignored) {}
                     wifiWait = null;
                 }
-                worker.execute(() -> autoStart(c));
+                worker.execute(() -> onWifiBack(c));
             }
         };
         try {
@@ -357,7 +374,7 @@ final class HelperControl {
         boolean tapResumes = false;
         switch (r) {
             case NOT_PAIRED: text = R.string.helper_notice_pair; break;
-            case NO_WIFI: text = R.string.helper_notice_wifi; break;
+            case NO_WIFI: text = R.string.helper_notice_wifi; waitForWifi(c); break;
             case DEBUGGING_OFF:
                 tapResumes = canToggleDebugging(c);
                 text = tapResumes ? R.string.helper_notice_resume : R.string.helper_notice_debugging;

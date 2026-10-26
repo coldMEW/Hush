@@ -52,7 +52,8 @@ public class HelperSetupActivity extends Activity {
 
         stepDev = step(R.id.step_dev, R.string.hs_dev, R.string.hs_dev_desc, R.string.action_open, v -> {
             new Prefs(this).devStep(true);   // ticked when the user comes back (see refresh)
-            if (!open(new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS))) open(new Intent(Settings.ACTION_SETTINGS));
+            int f = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP;
+            if (!open(new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(f))) open(new Intent(Settings.ACTION_SETTINGS).addFlags(f));
         });
         stepPair = step(R.id.step_pair, R.string.hs_pair, R.string.hs_pair_desc, R.string.hs_pair_action, v -> startPairing());
         makerStep = makerStep();
@@ -106,10 +107,12 @@ public class HelperSetupActivity extends Activity {
     }
 
     // Opens Developer options, scrolled to Wireless debugging if asked (the same key Settings uses
-    // for search results). In Hush's own task: with NEW_TASK, a Settings window left open elsewhere
-    // would just come back on whatever page it showed last. Back returns to this screen.
+    // for search results). In Settings' own window, so Hush's screen is not left behind Settings;
+    // CLEAR_TOP makes a Settings window left open elsewhere show Developer options, not the page it
+    // showed last.
     private void openDeveloperOptions(boolean wireless) {
-        Intent i = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+        Intent i = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if (wireless) i.putExtra(":settings:fragment_args_key", "toggle_adb_wireless");
         if (!open(i)) open(new Intent(Settings.ACTION_SETTINGS));
     }
@@ -147,7 +150,10 @@ public class HelperSetupActivity extends Activity {
         ((TextView) stepPair.findViewById(R.id.desc)).setText(pairDesc);
         boolean pairing = ps == PairingService.State.SEARCHING || ps == PairingService.State.FOUND
                 || ps == PairingService.State.WRONG_CODE || ps == PairingService.State.PAIRING || ps == PairingService.State.STARTING;
-        state(stepPair, paired && !pairing, wifi && !pairing);   // Developer options cannot always be read
+        // Pair stays available while Hush is waiting for the code: tapping it again reopens Wireless
+        // debugging and starts a fresh search. Only an actual pairing in progress disables it.
+        boolean working = ps == PairingService.State.PAIRING || ps == PairingService.State.STARTING;
+        state(stepPair, paired && !pairing, wifi && !working);   // Developer options cannot always be read
         boolean askCode = ps == PairingService.State.FOUND || ps == PairingService.State.WRONG_CODE;
         int codeVisibility = askCode ? View.VISIBLE : View.GONE;
         if (codeRow.getVisibility() != codeVisibility) codeRow.setVisibility(codeVisibility);

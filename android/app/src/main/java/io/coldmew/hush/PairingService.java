@@ -36,6 +36,13 @@ public class PairingService extends Service {
 
     private AdbMdns mdns;
     private volatile boolean busy;
+    // Android's service discovery can miss the pairing dialog now and then: while nothing is found,
+    // the search starts afresh every 20 s, and it ends after 3 minutes (on every Android version).
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable rediscover = () -> { if (state == State.SEARCHING && !busy) restartDiscovery(); };
+    private final Runnable giveUp = () -> {
+        if (!busy && (state == State.SEARCHING || state == State.FOUND || state == State.WRONG_CODE)) finish(State.IDLE);
+    };
 
     static State state() { return state; }
     static boolean portFound() { return port > 0; }
@@ -68,24 +75,33 @@ public class PairingService extends Service {
             if (code != null) pair(code.replaceAll("\\D", ""));
             return START_NOT_STICKY;
         }
-        // Start: foreground at once, then watch for the pairing port.
+        // Start (also again, when the user taps Pair once more): foreground at once, then a fresh
+        // search for the pairing port.
         foreground(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
+        if (busy) return START_NOT_STICKY;   // a pairing is already running
         set(State.SEARCHING);
-        if (mdns == null) {
-            mdns = new AdbMdns(this, AdbMdns.TLS_PAIRING, p -> {
-                port = p;
-                if (busy) return;
-                if (p > 0) {
-                    set(State.FOUND);
-                    show(note(getString(R.string.pair_found_title), getString(R.string.pair_found_text), true));
-                } else if (state == State.FOUND) {
-                    set(State.SEARCHING);
-                    show(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
-                }
-            });
-            mdns.start();
-        }
+        restartDiscovery();
+        handler.removeCallbacks(giveUp);
+        handler.postDelayed(giveUp, 180_000);
         return START_NOT_STICKY;
+    }
+
+    private void restartDiscovery() {
+        if (mdns != null) mdns.stop();
+        mdns = new AdbMdns(this, AdbMdns.TLS_PAIRING, p -> {
+            port = p;
+            if (busy) return;
+            if (p > 0) {
+                set(State.FOUND);
+                show(note(getString(R.string.pair_found_title), getString(R.string.pair_found_text), true));
+            } else if (state == State.FOUND) {
+                set(State.SEARCHING);
+                show(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
+            }
+        });
+        mdns.start();
+        handler.removeCallbacks(rediscover);
+        handler.postDelayed(rediscover, 20_000);
     }
 
     private void pair(String code) {
@@ -150,6 +166,7 @@ public class PairingService extends Service {
     }
 
     private void finish(State end) {
+        handler.removeCallbacksAndMessages(null);
         if (mdns != null) { mdns.stop(); mdns = null; }
         port = -1;
         busy = false;
@@ -163,6 +180,7 @@ public class PairingService extends Service {
     @Override public void onTimeout(int startId) { finish(State.IDLE); }
 
     @Override public void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
         if (mdns != null) { mdns.stop(); mdns = null; }
         if (state == State.SEARCHING || state == State.FOUND || state == State.WRONG_CODE) set(State.IDLE);
         super.onDestroy();
