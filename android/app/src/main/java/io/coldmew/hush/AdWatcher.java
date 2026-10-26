@@ -169,12 +169,18 @@ public class AdWatcher extends NotificationListenerService {
         boolean starting = ps != null && (ps.getState() == PlaybackState.STATE_BUFFERING
                 || ps.getState() == PlaybackState.STATE_CONNECTING);
         if (m != null && SleepTimer.onTrack(this, m.getString(MediaMetadata.METADATA_KEY_MEDIA_ID))) return;
-        if (!ad && playing && m != null && !Skipper.busy()) {
+        if (m != null && !Skipper.busy()) {
+            // The playlist/album to come back to after a skip. Taken as soon as Spotify reports it,
+            // also while the first song is still loading or an ad plays: when you switch playlists
+            // and an ad comes before the new one's first song, the new playlist is the right one.
+            String ctx = m.getString(KEY_CONTEXT);
+            if (ctx != null && (ctx.startsWith("spotify:playlist:") || ctx.startsWith("spotify:album:")
+                    || ctx.startsWith("spotify:artist:") || ctx.startsWith("spotify:user:") || ctx.startsWith("spotify:collection")))
+                lastContext = ctx;
             String id = m.getString(MediaMetadata.METADATA_KEY_MEDIA_ID);
-            if (id != null && id.startsWith("spotify:")) {
+            if (!ad && (playing || starting) && id != null && id.startsWith("spotify:")) {
                 lastTrack = id;
-                String ctx = m.getString(KEY_CONTEXT);
-                lastContext = ctx != null && ctx.startsWith("spotify:") ? ctx : null;
+                if (ctx == null || !ctx.startsWith("spotify:")) lastContext = null;   // e.g. a single song
             }
         }
 
@@ -190,6 +196,9 @@ public class AdWatcher extends NotificationListenerService {
         }
         if (Skipper.busy()) return;   // a restart is in progress; its own checks cover this
         if (!playing && !starting) return;   // a paused ad is left alone until it plays
+        // "End of song" sleep timer: an ad means the song is over. Pause now instead of skipping the
+        // ad and playing on (Spotify can report the ad before its ID, so onTrack may not have fired).
+        if (SleepTimer.adAtEndOfSong(this)) return;
 
         if (!inBreak) {
             inBreak = true;

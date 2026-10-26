@@ -93,6 +93,15 @@ final class SleepTimer {
         return true;
     }
 
+    // From AdWatcher when an ad plays: with "end of song" set, the song is over. Returns true if the
+    // pause was started (the ad is then paused rather than skipped).
+    static boolean adAtEndOfSong(Context c) {
+        if (settling) return true;   // the pause is on its way: leave the ad to it
+        if (!new Prefs(c).sleepEndOfTrack()) return false;
+        fire(c.getApplicationContext(), "end of song");
+        return true;
+    }
+
     // Spotify's playback state, or -1 without a Spotify session.
     private static int spotifyState(Context c) {
         try {

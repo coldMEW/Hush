@@ -110,7 +110,9 @@ Numbers vary a little between phones.
 
 ## Requirements
 
-- Android 11 or newer and Wi-Fi to skip ads (Wireless debugging needs Wi-Fi, not internet).
+- Android 11 or newer to skip ads. Wi-Fi is needed only to pair and to start Hush's helper (once
+  after each reboot), because Android turns on Wireless debugging only on Wi-Fi. After that, skipping
+  works on mobile data too.
   On Android 8 to 10 Hush can skip through [Shizuku](https://shizuku.rikka.app/) started from a
   computer, or mutes ads.
 - The official [Spotify](https://play.google.com/store/apps/details?id=com.spotify.music) app (free tier)
@@ -182,8 +184,8 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
 <details>
 <summary><b>Ads are muted instead of skipped</b></summary>
 
-Skipping is not ready: usually Wireless debugging is off after a reboot, or the phone is not on
-Wi-Fi. Tap Hush's notification, or open Hush — the status card says what is missing. If Hush asks to
+Skipping is not ready: usually Wireless debugging is off after a reboot, or Hush had to start its
+helper while the phone was not on Wi-Fi (it resumes as soon as Wi-Fi is back). Tap Hush's notification, or open Hush — the status card says what is missing. If Hush asks to
 pair again, Android has forgotten the pairing (it does that for pairings unused for 7 days unless
 **Disable adb authorization timeout** is on in Developer options).
 </details>

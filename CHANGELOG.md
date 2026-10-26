@@ -4,12 +4,25 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] - 2026-10-26
+
+### Fixed
+- Switching to another playlist could bring you back to the previous one, when an ad came before
+  the new playlist's first song. Hush now remembers the new playlist right away.
+- With the sleep timer set to **End of song**, an ad right after the song was skipped and the next
+  song played. Hush now pauses at the end of the song as expected.
+
+### Changed
+- Clearer wording: Wi-Fi is needed only to pair and to start Hush's helper; skipping also works on
+  mobile data.
+
 ## [2.0.0] - 2026-10-26
 
 ### Added
 - Hush no longer needs Shizuku. It pairs with Android's Wireless debugging by itself (you type the
   six-digit code into Hush's notification, once) and starts its own small helper. The helper
-  answers only Hush and can do only the few things skipping needs. Android 11 or newer, on Wi-Fi.
+  answers only Hush and can do only the few things skipping needs. Android 11 or newer; Wi-Fi is
+  needed only to pair and to start the helper, skipping then also works on mobile data.
 - Guided setup for pairing, with the one extra switch some phone makers need shown only on those
   phones (Xiaomi/Redmi/POCO, OPPO/OnePlus/realme, Meizu, Huawei/Honor).
 - Self-healing: if the helper stops, Hush starts it again. If it can't (for example Wireless
@@ -116,6 +129,7 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[2.0.1]: https://github.com/coldMEW/Hush/releases/tag/v2.0.1
 [2.0.0]: https://github.com/coldMEW/Hush/releases/tag/v2.0.0
 [1.0.3]: https://github.com/coldMEW/Hush/releases/tag/v1.0.3
 [1.0.2]: https://github.com/coldMEW/Hush/releases/tag/v1.0.2

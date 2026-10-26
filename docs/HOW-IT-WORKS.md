@@ -182,8 +182,9 @@ charge only mode". Setup shows only the step for your phone.
 
 ## 7. Limits
 
-- Wireless debugging needs Wi-Fi (no internet). Without Wi-Fi after a reboot, Hush mutes ads until
-  Wi-Fi is back.
+- Android turns on Wireless debugging only on Wi-Fi (no internet needed), so Wi-Fi is needed to pair
+  and to start the helper. A running helper doesn't need any network: skipping works on mobile data.
+  If the helper has to start without Wi-Fi (e.g. after a reboot), Hush mutes ads until Wi-Fi is back.
 - Android forgets a pairing that has not been used for 7 days, unless "Disable adb authorization
   timeout" is on in Developer options. Hush then asks to pair again.
 - Shizuku without root stops at every reboot and must be started again.
