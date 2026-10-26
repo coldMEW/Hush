@@ -153,6 +153,11 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
    and shows the result.
 6. Play something on Spotify and tap **Test ad skip** to hear the music come back.
 
+> [!TIP]
+> **Updating from 1.0.x?** Install the new APK over the old one; your settings are kept and
+> skipping keeps working through Shizuku. To drop Shizuku, tap **Set up** next to **Skip without
+> Shizuku** in Hush, pair once, then uninstall Shizuku.
+
 > [!NOTE]
 > Android turns Wireless debugging off when the phone restarts. With automatic restart on, Hush
 > takes care of it by itself a few seconds after you unlock the phone (Android 13+). Without it,

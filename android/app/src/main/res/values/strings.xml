@@ -159,6 +159,8 @@
     <!-- Skipping with Hush alone (its own helper) -->
     <string name="setup_skip">Skipping</string>
     <string name="setup_skip_new">One-time setup, about two minutes. Until then ads are muted.</string>
+    <string name="setup_no_shizuku">Skip without Shizuku</string>
+    <string name="setup_no_shizuku_desc">Optional: pair Hush once and Shizuku isn\'t needed anymore, not even after a reboot.</string>
     <string name="setup_skip_pair">Pair Hush with Wireless debugging again to keep skipping.</string>
     <string name="setup_skip_off">Wireless debugging is off. Turn it on and Hush resumes by itself.</string>
     <string name="setup_skip_resume">Paused because Wireless debugging is off. Tap Resume.</string>

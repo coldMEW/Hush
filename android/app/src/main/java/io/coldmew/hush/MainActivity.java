@@ -429,6 +429,10 @@ public class MainActivity extends Activity {
                 if (consent != null) startActivityForResult(consent, REQ_VPN_DNS);
             });
         if (Prefs.MODE_RESTART.equals(prefs.mode()) && !shizuku) renderSkipSetup();
+        // Skipping through Shizuku (e.g. after updating from 1.0.x): offer the switch to Hush's own
+        // helper, which needs no restart of Shizuku after every reboot. Gone once Hush is paired.
+        else if (Prefs.MODE_RESTART.equals(prefs.mode()) && HelperControl.supported() && !prefs.paired())
+            setupRow(R.string.setup_no_shizuku, R.string.setup_no_shizuku_desc, R.string.action_set_up, v -> openSkipSetup());
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             setupRow(R.string.setup_notifications, R.string.setup_notifications_desc, R.string.action_allow,
                     v -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF));

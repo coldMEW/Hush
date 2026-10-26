@@ -26,6 +26,8 @@ All notable changes to Hush are documented here. The format follows
 - Ads stop sooner: Spotify is stopped 30 to 90 ms after an ad is detected (was 50 to 105 ms),
   because the helper calls Android directly instead of starting a shell for the first step.
 - Shizuku is still supported: Hush uses it when its own helper is not set up, and on Android 8 to 10.
+  Updating from 1.0.x keeps skipping through Shizuku; an optional **Skip without Shizuku** step
+  switches to Hush's own helper, after which Shizuku can be uninstalled.
 - Switching "When an ad plays" back to **Skip** starts the helper right away, so the next ad is
   skipped, not muted.
 - If Hush's helper can't start, the reason is shown in **Recent activity**.
