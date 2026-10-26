@@ -71,20 +71,19 @@ appears, and a locked phone stays locked.
 
 ```mermaid
 flowchart LR
-    A["Spotify<br/>plays an ad"] -->|"ad ID or<br/>ad flag"| B("Hush<br/>detects it")
-    B --> C["Helper stops Spotify<br/>(30–90 ms)"]
-    C --> D["Spotify restarts<br/>in the background"]
-    D --> E["Music resumes,<br/>ad break gone"]
+    A["Spotify<br/>plays an ad"] --> B("Hush detects it<br/>from the ad ID or flag")
+    B --> C["Helper stops Spotify (30–90 ms),<br/>it restarts in the background"]
+    C --> D["Music resumes,<br/>ad break gone"]
 ```
 
 **Looks after itself.** Skipping never stops without you being told.
 
 ```mermaid
-flowchart LR
+flowchart TD
     X{"Helper running?"} -->|yes| S["Ads are skipped"]
-    X -->|no| R["Hush starts it again<br/>(about 1.5 s)"]
-    R -->|"can't: Wireless debugging off,<br/>no Wi-Fi, pairing forgotten"| M["Ads are muted and one<br/>Skipping paused notice says why"]
-    M -->|"tap, or automatic<br/>after a reboot"| R
+    X -->|no| R["Hush starts it again (about 1.5 s)"]
+    R -->|"can't: Wireless debugging off,<br/>no Wi-Fi, pairing forgotten"| M["Ads are muted, and one<br/>Skipping paused notice says why"]
+    M -->|"tap it, or automatic<br/>after a reboot"| R
 ```
 
 The tricky parts (Spotify's media-button intent being cancelled by a force-stop, keeping the
