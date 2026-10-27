@@ -287,6 +287,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 - [x] v2.0.0 — one app: no Shizuku needed, self-healing, optional automatic restart after a reboot
 - [x] v2.0.1 — fixes for playlist switches during an ad, the end-of-song timer, recovery when Wi-Fi
   is back, and smoother pairing
+- [x] v2.0.2 — DNS filter works on networks that block outside DNS (AdGuard Home, Pi-hole)
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing

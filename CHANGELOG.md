@@ -4,6 +4,15 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.2] - 2026-10-27
+
+### Fixed
+- With the DNS filter (**Block ad servers**) on, Spotify could hang and not load songs or album
+  art on networks that block DNS to outside servers, such as a router running AdGuard Home or
+  Pi-hole. When the filter's resolver does not answer, Hush now also asks the network's own DNS.
+- The DNS filter handles more lookups at once, for quick song skipping.
+- Edited DNS rules now take effect right away (they used to apply only after the filter restarted).
+
 ## [2.0.1] - 2026-10-26
 
 ### Fixed
@@ -138,6 +147,7 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[2.0.2]: https://github.com/coldMEW/Hush/releases/tag/v2.0.2
 [2.0.1]: https://github.com/coldMEW/Hush/releases/tag/v2.0.1
 [2.0.0]: https://github.com/coldMEW/Hush/releases/tag/v2.0.0
 [1.0.3]: https://github.com/coldMEW/Hush/releases/tag/v1.0.3

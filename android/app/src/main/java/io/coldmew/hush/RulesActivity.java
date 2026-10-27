@@ -44,6 +44,10 @@ public class RulesActivity extends Activity {
         error.setVisibility(View.GONE);
         try (OutputStreamWriter w = new OutputStreamWriter(new FileOutputStream(Rules.file(this)), StandardCharsets.UTF_8)) {
             w.write(text.endsWith("\n") ? text : text + "\n");
+            w.flush();
+            // A running filter takes the new rules at once (it used to keep the old ones until restarted).
+            if (DnsVpnService.running)
+                startService(new android.content.Intent(this, DnsVpnService.class).setAction(DnsVpnService.ACTION_RELOAD));
             Events.add(this, Events.INFO, "DNS rules updated");
             Toast.makeText(this, R.string.rules_saved, Toast.LENGTH_SHORT).show();
             finish();

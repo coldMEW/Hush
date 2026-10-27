@@ -79,6 +79,10 @@ Default rules (`rules.txt`, editable in the app):
 | `redirect adstudio-assets.scdn.co misc.scdn.co` | ad assets; a plain block here freezes background playback, while an answer that leads to an HTTP 403 does not |
 | `upstream 1.1.1.1` | resolver for everything else |
 
+Lookups go to the `upstream` resolver. If it does not answer within 1.2 s, Hush also asks the
+network's own DNS servers and uses the first answer: some networks (for example a router running
+AdGuard Home or Pi-hole) block DNS to outside resolvers. Edited rules take effect at once.
+
 Audio ads cannot be removed by DNS: they are served from the same hosts as music.
 
 ## 4. Sleep timer

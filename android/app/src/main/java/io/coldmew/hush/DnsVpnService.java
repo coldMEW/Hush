@@ -3,6 +3,10 @@ package io.coldmew.hush;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
@@ -12,8 +16,10 @@ import java.io.FileOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 // other app go out normally. Each query is matched against Rules, answered locally or forwarded.
 public class DnsVpnService extends VpnService {
     static final String ACTION_STOP = "io.coldmew.hush.STOP_VPN";
+    static final String ACTION_RELOAD = "io.coldmew.hush.RELOAD_RULES";   // after the rules were edited
     static volatile boolean running;
     private static final String DNS_IP = "10.111.0.2";
     private static final String[] PUBLIC_DNS = {
@@ -33,12 +40,16 @@ public class DnsVpnService extends VpnService {
 
     private ParcelFileDescriptor tun;
     private ThreadPoolExecutor pool;
-    private Rules rules;
+    private volatile Rules rules;
     private final AtomicLong hits = new AtomicLong();
     private boolean stopping;
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) { stop(false); return START_NOT_STICKY; }
+        if (intent != null && ACTION_RELOAD.equals(intent.getAction())) {
+            try { if (running) rules = new Rules(Rules.file(this)); } catch (Exception e) { Log.w(Hush.TAG, "rules not reloaded"); }
+            return START_STICKY;
+        }
         if (Build.VERSION.SDK_INT >= 34)
             startForeground(Hush.NOTIF_STATUS, Hush.statusNotification(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(Hush.NOTIF_STATUS, Hush.statusNotification(this));
@@ -60,9 +71,9 @@ public class DnsVpnService extends VpnService {
             if (tun == null) { Events.add(this, Events.FAIL, "DNS filter could not start (VPN permission missing)"); stop(false); return; }
             running = true;
             stopping = false;
-            // At most 8 lookups in flight and 64 waiting; beyond that queries are dropped (the
-            // resolver retries), so a burst cannot exhaust memory.
-            pool = new ThreadPoolExecutor(8, 8, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(64),
+            // At most 16 lookups in flight and 64 waiting; beyond that queries are dropped (the
+            // resolver retries), so a burst (e.g. skipping songs quickly) cannot exhaust memory.
+            pool = new ThreadPoolExecutor(16, 16, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(64),
                     new ThreadPoolExecutor.DiscardPolicy());
             pool.allowCoreThreadTimeOut(true);
             new Thread(this::loop, "hush-tun").start();
@@ -112,28 +123,67 @@ public class DnsVpnService extends VpnService {
         try { synchronized (out) { out.write(Dns.wrap(q, resp, resp.length)); } } catch (Exception e) { Log.w(Hush.TAG, "tun write failed"); }
     }
 
-    // Sends the query upstream from a protected (non-VPN) socket. Only a reply that comes from the
-    // upstream address and port 53 and carries our query's ID is accepted, so other hosts cannot
-    // inject answers.
+    // Sends the query upstream from a protected (non-VPN) socket. If the upstream does not answer
+    // within 1.2 s, the query also goes to the network's own DNS servers: some networks (e.g. a
+    // router running AdGuard Home or Pi-hole) block DNS to outside resolvers, and then every lookup
+    // would time out. The first valid reply wins. A reply is accepted only from a server that was
+    // asked, from port 53 and with our query's ID, so other hosts cannot inject answers.
     private byte[] forward(Dns.Query q) {
         try (DatagramSocket s = new DatagramSocket()) {
             protect(s);
-            s.setSoTimeout(4000);
             InetAddress up = InetAddress.getByName(rules.upstream);   // validated IPv4 literal: no lookup
+            List<InetAddress> asked = new ArrayList<>();
+            asked.add(up);
             s.send(new DatagramPacket(q.dns, q.dns.length, up, 53));
             byte[] b = new byte[4096];
-            long end = System.currentTimeMillis() + 4000;
-            while (System.currentTimeMillis() < end) {
+            long start = System.currentTimeMillis(), end = start + 4000;
+            boolean fallback = false;
+            while (true) {
+                long now = System.currentTimeMillis();
+                long until = fallback ? end : Math.min(end, start + 1200);
+                if (now >= until) {
+                    if (fallback || now >= end) break;
+                    fallback = true;
+                    for (InetAddress d : networkDns()) {
+                        if (asked.contains(d)) continue;
+                        asked.add(d);
+                        try { s.send(new DatagramPacket(q.dns, q.dns.length, d, 53)); } catch (Exception ignored) {}
+                    }
+                    continue;
+                }
+                s.setSoTimeout((int) Math.max(1, until - now));
                 DatagramPacket p = new DatagramPacket(b, b.length);
-                s.receive(p);
-                if (p.getLength() >= 12 && up.equals(p.getAddress()) && p.getPort() == 53
+                try { s.receive(p); } catch (java.net.SocketTimeoutException t) { continue; }
+                if (p.getLength() >= 12 && asked.contains(p.getAddress()) && p.getPort() == 53
                         && b[0] == q.dns[0] && b[1] == q.dns[1]) return Arrays.copyOf(b, p.getLength());
             }
+            Log.w(Hush.TAG, "DNS forward failed: no answer from " + asked.size() + " server(s)");
             return null;
         } catch (Exception e) {
             Log.w(Hush.TAG, "DNS forward failed: " + e.getClass().getSimpleName());
             return null;
         }
+    }
+
+    // The DNS servers of the phone's real networks (Wi-Fi or mobile, not this VPN), cached briefly.
+    private volatile List<InetAddress> netDns = new ArrayList<>();
+    private volatile long netDnsAt;
+    private List<InetAddress> networkDns() {
+        if (System.currentTimeMillis() - netDnsAt < 30_000) return netDns;
+        List<InetAddress> out = new ArrayList<>();
+        try {
+            ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+            for (Network n : cm.getAllNetworks()) {
+                NetworkCapabilities c = cm.getNetworkCapabilities(n);
+                if (c == null || c.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                        || !c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue;
+                LinkProperties lp = cm.getLinkProperties(n);
+                if (lp != null) for (InetAddress a : lp.getDnsServers()) if (!out.contains(a)) out.add(a);
+            }
+        } catch (Exception ignored) {}
+        netDns = out;
+        netDnsAt = System.currentTimeMillis();
+        return out;
     }
 
     private void flushHits() {
