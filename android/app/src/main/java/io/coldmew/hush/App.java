@@ -10,5 +10,6 @@ public class App extends Application {
         Rules.installDefaults(this);
         SleepTimer.restore(this);
         HelperControl.init(this);
+        Updater.schedule(this);
     }
 }

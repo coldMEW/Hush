@@ -32,6 +32,9 @@ public class PairingService extends Service {
 
     private static volatile State state = State.IDLE;
     private static volatile int port = -1;
+    // The pairing popup was open and then closed (e.g. the user switched back to Hush to type the
+    // code): its code is no longer valid, and the setup screen explains how to try again.
+    private static volatile boolean popupClosed;
     private static final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
 
     private AdbMdns mdns;
@@ -46,6 +49,7 @@ public class PairingService extends Service {
 
     static State state() { return state; }
     static boolean portFound() { return port > 0; }
+    static boolean popupClosed() { return popupClosed; }
     static void listen(Runnable r) { listeners.addIfAbsent(r); }
     static void unlisten(Runnable r) { listeners.remove(r); }
 
@@ -79,6 +83,7 @@ public class PairingService extends Service {
         // search for the pairing port.
         foreground(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
         if (busy) return START_NOT_STICKY;   // a pairing is already running
+        popupClosed = false;
         set(State.SEARCHING);
         restartDiscovery();
         handler.removeCallbacks(giveUp);
@@ -92,11 +97,13 @@ public class PairingService extends Service {
             port = p;
             if (busy) return;
             if (p > 0) {
+                popupClosed = false;
                 set(State.FOUND);
                 show(note(getString(R.string.pair_found_title), getString(R.string.pair_found_text), true));
-            } else if (state == State.FOUND) {
+            } else if (state == State.FOUND || state == State.WRONG_CODE) {
+                popupClosed = true;
                 set(State.SEARCHING);
-                show(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
+                show(note(getString(R.string.pair_searching_title), getString(R.string.pair_closed_text), false));
             }
         });
         mdns.start();
@@ -198,13 +205,15 @@ public class PairingService extends Service {
     private Notification note(String title, String text, boolean askCode) {
         PendingIntent cancel = PendingIntent.getService(this, 8, new Intent(this, PairingService.class).setAction(ACTION_CANCEL),
                 PendingIntent.FLAG_IMMUTABLE);
-        Notification.Builder b = new Notification.Builder(this, Hush.CH_ALERT)
+        Notification.Builder b = new Notification.Builder(this, askCode ? Hush.CH_PAIR : Hush.CH_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_hush).setColor(getColor(R.color.accent))
                 .setContentTitle(title).setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
-                .setContentIntent(PendingIntent.getActivity(this, 9, new Intent(this, HelperSetupActivity.class), PendingIntent.FLAG_IMMUTABLE))
                 .setOngoing(true).setOnlyAlertOnce(!askCode)
                 .addAction(new Notification.Action.Builder(null, getString(android.R.string.cancel), cancel).build());
+        // Opening Hush would close the pairing popup in Settings and make its code useless, so the
+        // code notification opens nothing: its Enter code button takes the code in place.
+        if (!askCode) b.setContentIntent(PendingIntent.getActivity(this, 9, new Intent(this, HelperSetupActivity.class), PendingIntent.FLAG_IMMUTABLE));
         if (askCode) {
             // The reply field needs a mutable PendingIntent: Android fills in the typed text.
             PendingIntent reply = PendingIntent.getService(this, 10, new Intent(this, PairingService.class).setAction(ACTION_REPLY),

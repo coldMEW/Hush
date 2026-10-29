@@ -18,7 +18,7 @@ import android.service.notification.NotificationListenerService;
 final class Hush {
     static final String TAG = "Hush";
     static final String SPOTIFY = "com.spotify.music";
-    static final String CH_STATUS = "status", CH_ALERT = "alert";
+    static final String CH_STATUS = "status", CH_ALERT = "alert", CH_PAIR = "pair";
     static final int NOTIF_STATUS = 1, NOTIF_ALERT = 2, NOTIF_SHIZUKU = 3, NOTIF_HELPER = 4;
     static final String ACTION_OFF = "io.coldmew.hush.TURN_OFF", ACTION_RESUME = "io.coldmew.hush.RESUME";
 
@@ -31,6 +31,7 @@ final class Hush {
             Events.add(c, Events.INFO, "Hush turned on");
             applyDns(c);
             BackgroundAudio.allow();
+            HelperControl.keepRunningOffWifiAsync(c);
             try { NotificationListenerService.requestRebind(new ComponentName(c, AdWatcher.class)); } catch (Exception ignored) {}
         } else {
             Events.add(c, Events.INFO, "Hush turned off");
@@ -73,6 +74,9 @@ final class Hush {
         s.setShowBadge(false);
         nm.createNotificationChannel(s);
         nm.createNotificationChannel(new NotificationChannel(CH_ALERT, c.getString(R.string.notif_channel_alert), NotificationManager.IMPORTANCE_DEFAULT));
+        // The pairing code field pops up over Settings, so the code can be typed without leaving the
+        // pairing popup (leaving it ends pairing). Used only for that one notification.
+        nm.createNotificationChannel(new NotificationChannel(CH_PAIR, c.getString(R.string.notif_channel_pair), NotificationManager.IMPORTANCE_HIGH));
     }
 
     static Notification statusNotification(Context c) {
@@ -147,6 +151,7 @@ final class Hush {
         @Override public void onReceive(Context c, Intent i) {
             String a = i.getAction();
             if (ACTION_OFF.equals(a)) setEnabled(c, false);
+            else if (Updater.ACTION_LATER.equals(a)) Updater.cancelNotice(c);   // this version is not announced again
             else if (SleepTimer.ACTION_SLEEP.equals(a)) SleepTimer.fireFromAlarm(c);
             else if (ACTION_RESUME.equals(a)) {   // "tap to resume skipping"
                 PendingResult done = goAsync();

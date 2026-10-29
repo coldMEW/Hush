@@ -42,7 +42,9 @@ public class MainActivity extends Activity {
 
     private Prefs prefs;
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private View optSleep, statusDetails, setupSection, choiceSkip, choiceMute, choiceOff, optDns, optAuto;
+    private View optUpdate, optUpdateCheck;
+    private android.app.AlertDialog updating;
+    private View optSleep, optCar, statusDetails, setupSection, choiceSkip, choiceMute, choiceOff, optDns, optAuto;
     private ImageButton power;
     private TextView statusTitle, statusDesc;
     private TextView statSkipped, statResume, statMuted, statDns;
@@ -84,6 +86,7 @@ public class MainActivity extends Activity {
         choiceOff = row(R.id.choice_off, R.string.mode_off, R.string.mode_off_desc);
         optDns = row(R.id.opt_dns, R.string.opt_dns, R.string.opt_dns_desc);
         optSleep = row(R.id.opt_sleep, R.string.opt_sleep, R.string.sleep_desc_off);
+        optCar = row(R.id.opt_car, R.string.opt_car, R.string.car_skip);
         View optRules = row(R.id.opt_rules, R.string.opt_rules, R.string.opt_rules_desc);
         View optTest = row(R.id.opt_test, R.string.opt_test, R.string.opt_test_desc);
         optTest.findViewById(R.id.chevron).setVisibility(View.GONE);
@@ -114,6 +117,7 @@ public class MainActivity extends Activity {
             ui.postDelayed(this::refresh, 400);
         });
         optSleep.setOnClickListener(v -> chooseSleep());
+        optCar.setOnClickListener(v -> chooseCar());
         optRules.setOnClickListener(v -> startActivity(new Intent(this, RulesActivity.class)));
         if (BuildConfig.DEBUG) optTest.setOnLongClickListener(v -> {
             Skipper.debugForcePlaylistFix = true;
@@ -126,17 +130,54 @@ public class MainActivity extends Activity {
         });
         optAuto = row(R.id.opt_auto, R.string.opt_auto, R.string.opt_auto_desc);
         optAuto.setOnClickListener(v -> toggleAutoRestart());
+        optUpdate = row(R.id.opt_update, R.string.opt_update, R.string.opt_update);
+        optUpdate.setOnClickListener(v -> startUpdate());
+        optUpdateCheck = row(R.id.opt_update_check, R.string.opt_update_check, R.string.opt_update_check_desc);
+        optUpdateCheck.setOnClickListener(v -> {
+            prefs.updateCheck(!prefs.updateCheck());
+            Updater.schedule(this);
+            refresh();
+        });
         View optDiag = row(R.id.opt_diag, R.string.opt_diag, R.string.opt_diag_desc);
         optDiag.findViewById(R.id.chevron).setVisibility(View.GONE);
         optDiag.setOnClickListener(v -> copyDiagnostics());
         findViewById(R.id.stats_reset).setOnClickListener(v -> { prefs.resetStats(); Hush.refreshNotification(this); refresh(); });
         findViewById(R.id.events_clear).setOnClickListener(v -> Events.clear(this));
 
+        if (getIntent().getBooleanExtra(Updater.EXTRA_UPDATE, false)) startUpdate();   // "Update" in the notification
+
         try {
             Shizuku.addBinderReceivedListenerSticky(binderUp);
             Shizuku.addBinderDeadListener(binderDown);
             Shizuku.addRequestPermissionResultListener(shizukuResult);
         } catch (Throwable ignored) {}
+    }
+
+    @Override protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        if (i.getBooleanExtra(Updater.EXTRA_UPDATE, false)) startUpdate();
+    }
+
+    // Update to the latest release: Hush checks, downloads and verifies it, then installs it
+    // (through its helper without any prompt, or with Android's installer). Settings are kept.
+    private void startUpdate() {
+        if (updating != null) return;
+        updating = new AlertDialog.Builder(this).setMessage(R.string.update_working).setCancelable(false).show();
+        Updater.updateNow(this, (r, release) -> ui.post(() -> {
+            if (updating != null) { updating.dismiss(); updating = null; }
+            switch (r) {
+                case UP_TO_DATE: Toast.makeText(this, getString(R.string.update_latest, Updater.version(this)), Toast.LENGTH_LONG).show(); break;
+                case NO_NETWORK: toast(R.string.update_offline); break;
+                case BAD_DOWNLOAD: toast(R.string.update_bad); break;
+                case FAILED: toast(R.string.update_failed); break;
+                case NEEDS_PERMISSION:
+                    toast(R.string.update_permission);
+                    open(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+                    break;
+                default: break;   // installed (Hush restarts) or Android's installer is asking
+            }
+            refresh();
+        }));
     }
 
     @Override protected void onResume() {
@@ -161,6 +202,35 @@ public class MainActivity extends Activity {
             Shizuku.removeBinderDeadListener(binderDown);
             Shizuku.removeRequestPermissionResultListener(shizukuResult);
         } catch (Throwable ignored) {}
+    }
+
+    // What happens to ads while Android Auto is connected (used instead of Skip; Mute and Do nothing
+    // above apply in the car too).
+    private static final String[] CAR_MODES = {Prefs.MODE_RESTART, Prefs.MODE_MUTE, Prefs.MODE_OFF};
+    private static final int[] CAR_LABELS = {R.string.car_skip, R.string.car_mute, R.string.car_off};
+
+    private void chooseCar() {
+        CharSequence[] items = new CharSequence[CAR_MODES.length];
+        int checked = 0;
+        for (int i = 0; i < CAR_MODES.length; i++) {
+            items[i] = getString(CAR_LABELS[i]);
+            if (CAR_MODES[i].equals(prefs.carMode())) checked = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.opt_car)
+                .setSingleChoiceItems(items, checked, (d, which) -> {
+                    prefs.carMode(CAR_MODES[which]);
+                    AdWatcher.recheck();
+                    refresh();
+                    d.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private int carDesc() {
+        String m = prefs.carMode();
+        return Prefs.MODE_MUTE.equals(m) ? R.string.car_desc_mute : Prefs.MODE_OFF.equals(m) ? R.string.car_desc_off : R.string.car_desc_skip;
     }
 
     // Same choices as Spotify's own sleep timer, a custom time, and "Turn off" while one is running.
@@ -237,6 +307,7 @@ public class MainActivity extends Activity {
         // next ad is skipped rather than muted while it starts.
         if (prefs.enabled() && Prefs.MODE_RESTART.equals(m) && prefs.paired() && HelperControl.supported() && !Shell.ready())
             HelperControl.ensure(this, true, true);
+        else if (Prefs.MODE_RESTART.equals(m)) HelperControl.keepRunningOffWifiAsync(this);
         AdWatcher.recheck();
         refresh();
     }
@@ -280,9 +351,21 @@ public class MainActivity extends Activity {
     private void copyDiagnostics() {
         String v = "";
         try { v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (PackageManager.NameNotFoundException ignored) {}
+        String spotify = "not installed";
+        try { spotify = getPackageManager().getPackageInfo(Hush.SPOTIFY, 0).versionName; } catch (PackageManager.NameNotFoundException ignored) {}
+        StringBuilder fails = new StringBuilder();
+        java.text.SimpleDateFormat time = new java.text.SimpleDateFormat("MM-dd HH:mm", Locale.US);
+        int n = 0;
+        for (Events.Event e : Events.recent(this)) {   // newest first; problems only, without app names
+            if (!Events.FAIL.equals(e.kind) || n++ == 5) continue;
+            fails.append("\n  ").append(time.format(new java.util.Date(e.time))).append(' ')
+                    .append(e.msg.replaceAll("\\(in (?!Spotify\\))[^)]*\\)", "(in another app)"));
+        }
         String report = "Hush " + v + "\nphone: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE
-                + " (API " + Build.VERSION.SDK_INT + ")\nmode: " + prefs.mode() + ", on: " + prefs.enabled()
-                + "\n" + HelperControl.diagnostics(this);
+                + " (API " + Build.VERSION.SDK_INT + ")\nSpotify: " + spotify + "\nmode: " + prefs.mode() + ", on: " + prefs.enabled()
+                + "\nnetwork: " + (HelperControl.onWifi(this) ? "Wi-Fi" : "no Wi-Fi") + ", Android Auto: " + (Car.connected(this) ? "yes" : "no")
+                + "\n" + HelperControl.diagnostics(this)
+                + "\nrecent problems:" + (fails.length() == 0 ? " none" : fails);
         android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
         cm.setPrimaryClip(android.content.ClipData.newPlainText("Hush diagnostics", report));
         if (Build.VERSION.SDK_INT < 33) toast(R.string.diag_copied);   // Android 13+ shows its own confirmation
@@ -364,7 +447,15 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 30) optDns.setStateDescription(getString(prefs.dns() ? R.string.state_on : R.string.state_off));
 
         ((TextView) optSleep.findViewById(R.id.summary)).setText(SleepTimer.describe(this));
+        ((TextView) optCar.findViewById(R.id.summary)).setText(carDesc());
         renderAutoRestart();
+        String latest = prefs.latestVersion(), current = Updater.version(this);
+        ((TextView) optUpdate.findViewById(R.id.summary)).setText(Updater.newer(latest, current)
+                ? (prefs.latestSummary().isEmpty() ? getString(R.string.opt_update_available_plain, latest)
+                        : getString(R.string.opt_update_available, latest, prefs.latestSummary()))
+                : getString(R.string.opt_update_desc, current));
+        ((Switch) optUpdateCheck.findViewById(R.id.toggle)).setChecked(prefs.updateCheck());
+        if (Build.VERSION.SDK_INT >= 30) optUpdateCheck.setStateDescription(getString(prefs.updateCheck() ? R.string.state_on : R.string.state_off));
 
         // Statistics
         long skipped = prefs.get(Prefs.SKIPPED);
@@ -416,6 +507,7 @@ public class MainActivity extends Activity {
                     v -> open(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + Hush.SPOTIFY))));
         if (!listener)
             setupRow(R.string.setup_listener, R.string.setup_listener_desc, R.string.action_allow, v -> {
+                prefs.listenerAsked(true);
                 Intent i = Build.VERSION.SDK_INT >= 30
                         ? new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
                                 Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
@@ -423,6 +515,13 @@ public class MainActivity extends Activity {
                         : new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
                 if (!open(i)) open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
             });
+        // Android 13+ greys out notification access for apps installed from a browser or file
+        // manager ("Restricted setting") until the user allows it in App info. Apps cannot read that
+        // state, so the way out is shown once Allow did not lead to access.
+        if (!listener && Build.VERSION.SDK_INT >= 33 && prefs.listenerAsked())
+            setupRow(R.string.setup_restricted, R.string.setup_restricted_desc, R.string.action_app_info,
+                    v -> open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
         if (prefs.dns() && VpnService.prepare(this) != null)
             setupRow(R.string.setup_vpn, R.string.setup_vpn_desc, R.string.action_allow, v -> {
                 Intent consent = VpnService.prepare(this);
@@ -455,6 +554,11 @@ public class MainActivity extends Activity {
                 if (Shell.running() && !Shell.shizukuReady()) Shell.requestPermission();
                 else startActivity(new Intent(this, ShizukuSetupActivity.class));
             });
+        } else if (prefs.paired() && !HelperControl.onWifi(this)) {
+            // Off Wi-Fi the helper cannot start (Wireless debugging needs Wi-Fi): Resume could not
+            // work, and Hush resumes by itself when Wi-Fi is back.
+            setupRow(R.string.setup_skip, R.string.setup_skip_wifi, R.string.action_wifi,
+                    v -> open(new Intent(Build.VERSION.SDK_INT >= 29 ? Settings.Panel.ACTION_WIFI : Settings.ACTION_WIFI_SETTINGS)));
         } else if (prefs.paired()) {
             boolean tap = HelperControl.canToggleDebugging(this) || HelperControl.debuggingOn(this);
             setupRow(R.string.setup_skip, tap ? R.string.setup_skip_resume : R.string.setup_skip_off,

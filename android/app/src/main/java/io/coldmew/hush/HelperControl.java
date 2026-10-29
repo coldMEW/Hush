@@ -122,7 +122,11 @@ final class HelperControl {
     // Turns Wireless debugging off and keeps it off for a few seconds: right after a reboot Android
     // can switch it on again by itself (seen on a recent Android version about 20 s after boot), shortly after
     // Hush switched it off. At most three corrections, so Hush never fights the system for long.
+    // Never while USB debugging is off: with both off Android stops its debugging service and the
+    // helper with it. So USB debugging is turned on first (Skip only); if it stays off, Wireless
+    // debugging stays on.
     static void keepDebuggingOff(Context c) {
+        if (!keepRunningOffWifi(c)) { Log.i(Hush.TAG, "USB debugging is off: leaving Wireless debugging on"); return; }
         setDebugging(c, false);
         for (int i = 0; i < 3; i++) {
             SystemClock.sleep(2000);
@@ -152,7 +156,8 @@ final class HelperControl {
         Log.i(Hush.TAG, "helper start: " + r + (r == Result.READY ? "" : " " + lastError));
         // A failed start is shown in the activity log (once per reason), for the user and bug reports.
         String failure = r == Result.READY || r == Result.UNSUPPORTED ? "" : lastError;
-        if (!failure.isEmpty() && !failure.equals(lastLogged)) Events.add(c, Events.INFO, "Skipping helper didn't start: " + failure);
+        if (!failure.isEmpty() && !failure.equals(lastLogged)) Events.add(c, Events.INFO, "Skipping helper didn't start: " + failure
+                + (r == Result.NO_WIFI ? " (it starts only on Wi-Fi; ads are muted until Wi-Fi is back)" : ""));
         lastLogged = failure;
         return r;
     }
@@ -226,7 +231,32 @@ final class HelperControl {
             // Wireless debugging itself later (granted only to Hush, once).
             BackgroundAudio.apply(c);
             if (Build.VERSION.SDK_INT >= 33 && !canToggleDebugging(c)) Shell.run(Commands.GRANT_SECURE_SETTINGS, c.getPackageName());
+            keepRunningOffWifi(c);
         });
+    }
+
+    // Android switches Wireless debugging off when Wi-Fi drops. With USB debugging off too, Android
+    // then stops its debugging service and every process it started, Hush's helper included, and
+    // the helper can only be started again on Wi-Fi: on mobile data ads would be muted. So while
+    // the user has chosen Skip, Hush turns USB debugging on (once; it stays on) and says so in
+    // Recent activity.
+    static void keepRunningOffWifiAsync(Context ctx) {
+        Context c = ctx.getApplicationContext();
+        worker.execute(() -> keepRunningOffWifi(c));
+    }
+
+    // Returns true if USB debugging is on (it was, or Hush turned it on), i.e. the helper survives
+    // Wireless debugging going off.
+    static boolean keepRunningOffWifi(Context c) {
+        if (!Shell.ready()) return false;
+        String state = Shell.run(Commands.USB_DEBUGGING_STATE).trim();
+        if (!"0".equals(state)) return "1".equals(state);
+        Prefs p = new Prefs(c);
+        if (!p.enabled() || !Prefs.MODE_RESTART.equals(p.mode())) return false;
+        Shell.run(Commands.USB_DEBUGGING_ON);
+        if (!"1".equals(Shell.run(Commands.USB_DEBUGGING_STATE).trim())) return false;
+        Events.add(c, Events.INFO, "Turned on USB debugging, so skipping keeps working when Wi-Fi is off");
+        return true;
     }
 
     private static void onDied(Context c) {
@@ -270,6 +300,22 @@ final class HelperControl {
         Context c = ctx.getApplicationContext();
         if (!wanted(c) || HushHelper.ready() || booting) return;
         Prefs p = new Prefs(c);
+        if (p.updating() && canToggleDebugging(c) && onWifi(c)) {
+            // Hush just updated itself (the user tapped Update): bring skipping back the same way as
+            // the automatic restart, and leave Wireless debugging as it was before.
+            p.updating(false);
+            boolean wasOn = debuggingOn(c);
+            booting = true;
+            worker.execute(() -> {
+                try {
+                    Result r = start(c, true);
+                    if (r != Result.READY) notifyStopped(c, r);
+                    else if (!wasOn) keepDebuggingOff(c);
+                } finally { booting = false; }
+            });
+            return;
+        }
+        p.updating(false);
         if (p.autoRestart() && canToggleDebugging(c)) {
             if (onWifi(c)) {
                 booting = true;
@@ -296,6 +342,7 @@ final class HelperControl {
     static void phoneTest(Context c) {
         Prefs p = new Prefs(c);
         if (!HushHelper.ready() || !canToggleDebugging(c)) return;
+        keepRunningOffWifi(c);   // with USB debugging on, the helper survives Wireless debugging going off
         phoneTestRunning = true;
         boolean alive = true;
         try {
@@ -337,10 +384,13 @@ final class HelperControl {
     private static void onWifiBack(Context c) {
         if (!wanted(c) || HushHelper.ready()) return;
         Prefs p = new Prefs(c);
-        if (p.autoRestart() && canToggleDebugging(c)) { autoStart(c); return; }
-        SystemClock.sleep(3000);   // Wireless debugging, if on, needs a moment on the new network
-        Result r = start(c, false);
-        if (r != Result.READY) notifyStopped(c, r);
+        if (p.autoRestart() && canToggleDebugging(c)) { autoStart(c); }
+        else {
+            SystemClock.sleep(3000);   // Wireless debugging, if on, needs a moment on the new network
+            Result r = start(c, false);
+            if (r != Result.READY) notifyStopped(c, r);
+        }
+        if (HushHelper.ready()) Events.add(c, Events.INFO, "Wi-Fi is back: skipping resumed");
     }
 
     private static synchronized void waitForWifi(Context c) {

@@ -22,14 +22,37 @@ final class Prefs {
     boolean dns() { return sp.getBoolean("dns", false); }
 
     // From App.onCreate, before anything is stored: an update from 1.0.x keeps the filter as it was.
+    // Only a 1.0.x install counts: 2.0 stores keys 1.0.x never had (pairing, helper, setup), and a
+    // 2.0 user who never touched the switch also has no "dns" key. Treating those as 1.0.x turned the
+    // filter on by itself after the first restart (2.0.0 to 2.0.2). The answer is stored, so it is
+    // decided once.
     static void keepDnsDefault(Context c) {
         SharedPreferences sp = c.getSharedPreferences("hush", Context.MODE_PRIVATE);
-        if (!sp.contains("dns") && !sp.getAll().isEmpty()) sp.edit().putBoolean("dns", true).apply();
+        if (sp.contains("dns")) return;
+        boolean from1x = !sp.getAll().isEmpty();
+        for (String k : new String[]{"paired", "dev_step", "helper_boot", "auto_restart", "phone_test"})
+            if (sp.contains(k)) from1x = false;
+        sp.edit().putBoolean("dns", from1x).apply();
     }
     void dns(boolean v) { sp.edit().putBoolean("dns", v).apply(); }
 
     String mode() { return sp.getString("mode", MODE_RESTART); }
     void mode(String v) { sp.edit().putString("mode", v).apply(); }
+    // Updates: the daily check (on unless turned off), the version announced last (each version is
+    // announced once), and the latest release seen, for the Update row.
+    // Set right before Hush installs its own update, so the new version restarts its helper by itself.
+    boolean updating() { return sp.getBoolean("updating", false); }
+    void updating(boolean v) { sp.edit().putBoolean("updating", v).commit(); }
+    boolean updateCheck() { return sp.getBoolean("update_check", true); }
+    void updateCheck(boolean v) { sp.edit().putBoolean("update_check", v).apply(); }
+    String updateNotified() { return sp.getString("update_notified", ""); }
+    void updateNotified(String v) { sp.edit().putString("update_notified", v).apply(); }
+    String latestVersion() { return sp.getString("latest_version", ""); }
+    String latestSummary() { return sp.getString("latest_summary", ""); }
+    void latest(String version, String summary) { sp.edit().putString("latest_version", version).putString("latest_summary", summary).apply(); }
+    // What Skip does while Android Auto is connected: skip, mute or do nothing (MODE_* values).
+    String carMode() { return sp.getString("car_mode", MODE_RESTART); }
+    void carMode(String v) { sp.edit().putString("car_mode", v).apply(); }
 
     boolean mutedByUs() { return sp.getBoolean("muted_by_us", false); }
     void mutedByUs(boolean v) { sp.edit().putBoolean("muted_by_us", v).commit(); }
@@ -42,6 +65,10 @@ final class Prefs {
     // The user went through the Developer options step (newer Android versions do not tell apps).
     boolean devStep() { return sp.getBoolean("dev_step", false); }
     void devStep(boolean v) { sp.edit().putBoolean("dev_step", v).apply(); }
+    // The user tapped Allow for notification access at least once: if access is still missing, Android
+    // may have blocked the switch as a restricted setting (apps installed outside the Play Store).
+    boolean listenerAsked() { return sp.getBoolean("listener_asked", false); }
+    void listenerAsked(boolean v) { sp.edit().putBoolean("listener_asked", v).apply(); }
     boolean autoRestart() { return sp.getBoolean("auto_restart", false); }
     void autoRestart(boolean v) { sp.edit().putBoolean("auto_restart", v).apply(); }
     String phoneTest() { return sp.getString("phone_test", TEST_NONE); }

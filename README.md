@@ -51,7 +51,7 @@ starts its own small helper. Shizuku still works if you already use it.
 | **Spotify-only DNS filter (optional)** | Off by default. Turn on **Block ad servers** to block video-ad hosts and the ad-asset host that can freeze background playback. Other apps and all non-DNS traffic are untouched. |
 | **One app, guided setup** | Hush pairs with Wireless debugging itself: you type a six-digit code into its notification, once. No computer, no second app. |
 | **Looks after itself** | If its helper stops, Hush starts it again. After a reboot one tap brings skipping back, or Hush does it by itself if you turn on automatic restart. |
-| **Private** | No accounts, analytics or tracking. Nothing leaves the device (with the DNS filter on, only Spotify's own DNS lookups are forwarded). |
+| **Private** | No accounts, analytics or tracking. Nothing about you leaves the device (with the DNS filter on, only Spotify's own DNS lookups are forwarded; once a day Hush asks GitHub if there is a new version, which you can turn off). |
 
 ## How it works
 
@@ -104,15 +104,15 @@ Numbers vary a little between phones.
 | Spotify's notification back | about 1 s | 0.2–1.1 s |
 | Spotify shown on screen (when in the background) | never | never |
 | After a reboot | open Shizuku, tap Start | automatic, about 4 s after unlocking (opt-in), or one tap |
-| After a Hush update | — | ready again in 1–2 s |
+| After a Hush update | — | ready again in 1–3 s |
 | If the helper is stopped | Shizuku had to be restarted by hand | restarted by Hush in about 1.5 s |
-| App size | 172 KB | 205 KB |
+| App size | 172 KB | 213 KB |
 
 ## Requirements
 
 - Android 11 or newer to skip ads. Wi-Fi is needed only to pair and to start Hush's helper (once
   after each reboot), because Android turns on Wireless debugging only on Wi-Fi. After that, skipping
-  works on mobile data too.
+  works on mobile data too (Hush turns on USB debugging for this, see Troubleshooting).
   On Android 8 to 10 Hush can skip through [Shizuku](https://shizuku.rikka.app/) started from a
   computer, or mutes ads.
 - The official [Spotify](https://play.google.com/store/apps/details?id=com.spotify.music) app (free tier)
@@ -143,9 +143,10 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
       About phone). Come back to Hush.
    2. **Pair Hush:** tap **Pair**. Hush opens Developer options. Turn on **Wireless debugging**
       (allow it on your Wi-Fi), open it and tap **Pair device with pairing code**.
-   3. Pull down the notification shade. In Hush's notification **Enter the pairing code** (expand
-      it if it shows only its title), tap **Enter code** and type the six digits shown in Settings.
-      Hush pairs and starts its helper; the notification changes to **Skipping is ready**.
+   3. Stay on that screen: Hush's **Enter the pairing code** notification pops up over it (if you
+      miss it, pull down the notification shade and expand it). Tap **Enter code** and type the six
+      digits shown in Settings. Hush pairs and starts its helper; the notification changes to
+      **Skipping is ready**.
 
    Some phone makers need one extra switch in Developer options; Hush shows that step only on
    those phones. Already using Shizuku? Hush uses it too, and you can skip this.
@@ -172,14 +173,59 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
 - **Power button** — turns Hush on or off. The notification also has a **Turn off** button.
 - **When an ad plays** — *Skip* (restart Spotify), *Mute*, or *Do nothing*.
 - **Sleep timer** — use this instead of Spotify's timer; it survives ad skips.
+- **In the car (Android Auto)** — *Skip*, *Mute* or *Do nothing* while Android Auto is connected.
+  Skipping in the car never switches apps on the phone, so navigation keeps running.
 - **DNS rules** — view or edit the filter (`block`, `nxdomain`, `redirect`, `ip`, `upstream`).
 - **Restart automatically after a reboot** — Hush brings skipping back by itself after a restart
   (Android 13+). Turn it off and on again to repeat the phone test.
 - **Test ad skip** — restarts Spotify now, to check that your music comes back.
+- **Update Hush** — gets the latest version from GitHub Releases and installs it; your settings and
+  pairing are kept, no new setup. **Tell me about updates** shows one notification per new version
+  (turn it off to stop the daily check).
 - **Recent activity** — every ad break, skip and change, with timings. If Hush's helper can't
   start, the reason is shown here too.
 
 ## Troubleshooting
+
+<details>
+<summary><b>Do Developer options and Wireless debugging have to stay on?</b></summary>
+
+Developer options: yes. Turning them off also stops Hush's helper, and ads are muted instead of
+skipped. Wireless debugging: by default Hush leaves it the way you set it during setup. With
+**Restart automatically after a reboot** on, Hush tests once whether your phone keeps skipping
+ready with Wireless debugging off; if it does, Hush keeps it off and turns it on only for a few
+seconds after a reboot. With **Skip** selected, Hush also turns on USB debugging, which keeps its
+helper running when Wireless debugging goes off.
+</details>
+
+<details>
+<summary><b>Does it work on mobile data?</b></summary>
+
+Yes. Wi-Fi is needed only to pair and to start Hush's helper once after a reboot (Android turns on
+Wireless debugging only on Wi-Fi; no internet is needed on that Wi-Fi). When Wi-Fi drops, Android
+switches Wireless debugging off; with USB debugging also off it then stops its debugging service
+and Hush's helper with it. So with **Skip** selected, Hush turns USB debugging on (shown in
+**Recent activity**). If the helper does stop, ads are muted until Wi-Fi is back, and Hush resumes
+by itself.
+</details>
+
+<details>
+<summary><b>The APK doesn't install</b></summary>
+
+Hush isn't on the Play Store, so Play Protect may warn about it: tap **More details** →
+**Install anyway**. On some Android 16 phones the installer closes without a message because of
+Google's developer verification for apps from outside the Play Store; turning Play Protect off for
+the install (and back on afterwards) may get around it.
+</details>
+
+<details>
+<summary><b>Notification access is greyed out ("Restricted setting")</b></summary>
+
+Android 13 and newer do this for apps installed from a browser or a file manager. Open
+**Settings → Apps → Hush**, tap **⋮** at the top right, then **Allow restricted settings**, and
+turn on notification access again. Hush shows these steps with an **App info** button if access
+is still off after you tapped Allow.
+</details>
 
 <details>
 <summary><b>Ads are muted instead of skipped</b></summary>
@@ -195,8 +241,8 @@ authorization timeout** is on in Developer options).
 <summary><b>Copy diagnostics</b></summary>
 
 Settings → **Copy diagnostics** copies a short report (phone maker and model, Android version,
-how Hush skips, the last helper errors) for a bug report. It has nothing about what you listen
-to, and Hush never sends it anywhere by itself.
+Spotify version, how Hush skips, Wi-Fi and Android Auto state, the last problems Hush logged) for a
+bug report. It has nothing about what you listen to, and Hush never sends it anywhere by itself.
 </details>
 
 <details>
@@ -223,7 +269,9 @@ Android allows one VPN at a time. Hush's ad skipping keeps working without its D
 ## Known issues
 
 - Restoring the previous playlist works for playlists and albums, not for an artist's
-  "Popular" list.
+  "Popular" list or radio (Hush leaves those as Spotify brings them back).
+- Android Auto: the car behaviour was tested with Android's car mode on a phone, not yet in a car.
+  If a skip still restarts Android Auto, choose **Mute** under **In the car** and open an issue.
 
 ## Privacy & security
 
@@ -288,6 +336,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
 - [x] v2.0.1 — fixes for playlist switches during an ad, the end-of-song timer, recovery when Wi-Fi
   is back, and smoother pairing
 - [x] v2.0.2 — DNS filter works on networks that block outside DNS (AdGuard Home, Pi-hole)
+- [x] v2.0.3 — skipping on mobile data, easier pairing, Android Auto choice, in-app updates
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing

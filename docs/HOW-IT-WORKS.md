@@ -48,14 +48,27 @@ The order of steps matters:
    Spotify registered, so a play key sent through the system before the new session exists is
    lost. This was the cause of skips that left Spotify silent over Bluetooth.
 4. If Spotify's activity was started but Spotify was in the background, bring back the app (or
-   home screen) that was in front.
+   home screen) that was in front: the exact task, as the recents screen does (same window, same
+   state, e.g. a running navigation), or the app's launcher entry if that is not possible. Not
+   while Android Auto is connected (see below).
 5. When the session settles (paused), press play. Hush alternates three routes until playback
    starts: the system media-key dispatcher (which also gives Spotify a temporary foreground
    allowance and avoids Android muting background audio), a transport control, and a key event.
 6. If Spotify came back on a different playlist or album, start the remembered one again with
    Spotify's `spotify:<playlist|album>:<id>:play` link. (Spotify's session ignores the standard
-   play-from-URI command on the free tier.)
+   play-from-URI command on the free tier.) Hush remembers every kind of source Spotify reports,
+   including a song picked from search (`spotify:track:…`), an artist's Popular list or radio,
+   and takes it as soon as Spotify reports it, also when the ad comes before the new song starts.
+   Sources other than playlists and albums are left as Spotify brought them back: before 2.0.3
+   Hush ignored them and could switch back to an older playlist.
 7. If Android still reports the player as muted, a pause/play through the dispatcher clears it.
+
+**Android Auto.** While a car screen is connected, a skip still restarts Spotify in the background
+but never brings an app to the front on the phone: no app is restored, no playlist link. Switching
+apps on the phone can restart the Android Auto session and reset navigation, and the phone's own
+screen is not what the driver sees. Users can also choose Mute or Do nothing for the car. Hush
+knows Android Auto is connected from Android's car mode or an active automotive projection (which
+only the shell may read, so Hush asks its helper).
 
 Music is typically audible again 2 to 3 seconds after the ad is stopped (3 to 4 with the activity
 route); the "Avg. resume" statistic is a little higher because it counts until Spotify reports
@@ -139,7 +152,8 @@ actions, not a general shell.
 **Pairing (once).** Wireless debugging lets a paired device run `adb shell` over the network. Hush
 pairs as such a device, from the phone itself: it finds the pairing port through mDNS
 (`_adb-tls-pairing._tcp`, only addresses of this phone), takes the six-digit code from a reply
-field in its notification, and runs Android's pairing protocol: TLS 1.3, the code plus 64 bytes of
+field in its notification (a pop-up notification, so it shows over Settings: leaving the pairing
+popup in Settings ends pairing and makes its code invalid), and runs Android's pairing protocol: TLS 1.3, the code plus 64 bytes of
 exported TLS keying material as the SPAKE2 password, HKDF-SHA256 to an AES-128-GCM key, then the
 exchange of public keys. Hush's RSA key is generated on the phone and stored encrypted with an
 Android Keystore key. No library from outside the platform is used; the SPAKE2 code is Hush's own,
@@ -166,7 +180,22 @@ unlocked following a reboot (Android starts no apps before the first unlock).
 ads are muted and one notification says why. Tapping it resumes: on Android 13+ Hush turns
 Wireless debugging on itself (with `WRITE_SECURE_SETTINGS`, which the helper grants it once), so
 skipping is back in about 1 s (up to about 6 s if Wireless debugging takes a moment to start).
-Without Wi-Fi, Hush waits and tries again by itself as soon as Wi-Fi is back (about 4 to 7 s).
+Without Wi-Fi, Hush waits and tries again by itself as soon as Wi-Fi is back (about 4 to 7 s);
+Recent activity says so.
+
+**Updates.** Once a day (unless turned off) Hush asks GitHub's public API for the latest release;
+nothing about the user or the phone is sent. A newer version is announced once, with the first line
+of its release notes. **Update Hush** downloads the APK and installs it only if it matches the
+SHA-256 GitHub publishes, is Hush, is newer and is signed with the same key. With the helper it is
+streamed into `pm install -r` (no prompt; settings and pairing are kept), and the new version starts
+its helper by itself; without the helper Android's installer asks once.
+
+**Mobile data.** The helper runs in the process group of Android's debugging service (adbd), and
+the shell user cannot move it out. Android switches Wireless debugging off when Wi-Fi drops; if USB
+debugging is off too, init stops adbd and kills its whole group, the helper included, and it can
+only be started again on Wi-Fi. (Shizuku has the same limit and asks users to keep USB debugging
+on.) So while Skip is selected, Hush turns USB debugging on through its helper and logs it; the
+helper then keeps running on mobile data.
 A connection refused right after Wireless debugging was switched on is tried once more before
 Hush concludes that the pairing is gone.
 
@@ -191,7 +220,8 @@ charge only mode". Setup shows only the step for your phone.
 ## 7. Limits
 
 - Android turns on Wireless debugging only on Wi-Fi (no internet needed), so Wi-Fi is needed to pair
-  and to start the helper. A running helper doesn't need any network: skipping works on mobile data.
+  and to start the helper. A running helper needs no network and keeps skipping on mobile data as
+  long as USB debugging is on, which Hush turns on while Skip is selected (see Mobile data above).
   If the helper has to start without Wi-Fi (e.g. after a reboot), Hush mutes ads until Wi-Fi is back.
 - Android forgets a pairing that has not been used for 7 days, unless "Disable adb authorization
   timeout" is on in Developer options. Hush then asks to pair again.

@@ -14,6 +14,8 @@ final class Actions {
     private static Object activityManager;
     private static Method forceStop;   // IActivityManager.forceStopPackage(String, int)
     private static Object taskManager;
+    // Id of the task frontComponent() found last (-1 if unknown), so it can be brought back as is.
+    private static volatile int frontTask = -1;
 
     private Actions() {}
 
@@ -52,6 +54,7 @@ final class Actions {
             }
             if (!(list instanceof java.util.List) || ((java.util.List<?>) list).isEmpty()) return null;
             Object info = ((java.util.List<?>) list).get(0);
+            frontTask = taskId(info);
             // The task's root activity, like the realActivity of the recents entry 1.0.3 parsed.
             android.content.ComponentName cn = (android.content.ComponentName) info.getClass().getField("baseActivity").get(info);
             if (cn == null) cn = (android.content.ComponentName) info.getClass().getField("topActivity").get(info);
@@ -59,6 +62,57 @@ final class Actions {
         } catch (Throwable t) {
             System.err.println("hush_helper: direct task read failed: " + t);
             return null;
+        }
+    }
+
+    private static int taskId(Object info) {
+        for (String f : new String[]{"taskId", "id"}) {   // TaskInfo.taskId; RunningTaskInfo.id before Android 10
+            try { return info.getClass().getField(f).getInt(info); } catch (Throwable ignored) {}
+        }
+        return -1;
+    }
+
+    // ActivityTaskManager's moveTaskToFront(caller, callingPackage, taskId, flags, options): what the
+    // recents screen does when you tap an app. Returns false if the call is not there on this device.
+    private static boolean toFront(int task) {
+        if (task <= 0) return false;
+        for (Object service : new Object[]{taskManager, activityManager}) {
+            if (service == null) continue;
+            for (Method m : service.getClass().getMethods()) {
+                if (!m.getName().equals("moveTaskToFront")) continue;
+                Class<?>[] p = m.getParameterTypes();
+                try {
+                    if (p.length == 5) { m.invoke(service, null, "com.android.shell", task, 0, null); return true; }
+                    if (p.length == 3) { m.invoke(service, task, 0, null); return true; }   // older versions
+                } catch (Throwable t) {
+                    System.err.println("hush_helper: moveTaskToFront failed: " + t);
+                }
+            }
+        }
+        return false;
+    }
+
+    // `pm install -r -S <size>` reading the APK from stdin: no file path the shell must read, and
+    // -r keeps the app's data (an update, never a fresh install). Returns pm's output ("Success").
+    private static String install(android.os.ParcelFileDescriptor apk, long size) {
+        if (apk == null || size <= 0) return "Failure: no APK";
+        try (android.os.ParcelFileDescriptor f = apk;
+             java.io.InputStream in = new java.io.FileInputStream(f.getFileDescriptor())) {
+            java.lang.Process p = new ProcessBuilder("pm", "install", "-r", "-S", String.valueOf(size))
+                    .redirectErrorStream(true).start();
+            try (java.io.OutputStream out = p.getOutputStream()) {
+                byte[] b = new byte[65536];
+                for (int n; (n = in.read(b)) > 0; ) out.write(b, 0, n);
+            }
+            StringBuilder s = new StringBuilder();
+            try (java.io.InputStream r = p.getInputStream()) {
+                byte[] b = new byte[4096];
+                for (int n; (n = r.read(b)) > 0; ) s.append(new String(b, 0, n, "UTF-8"));
+            }
+            p.waitFor();
+            return s.toString().trim();
+        } catch (Throwable t) {
+            return "Failure: " + t.getClass().getSimpleName();
         }
     }
 
@@ -96,6 +150,23 @@ final class Actions {
                 reply.writeLong((SystemClock.elapsedRealtimeNanos() - t) / 1000);
                 break;
             }
+            case HelperProtocol.PROJECTION:
+                reply.writeInt(HelperProtocol.OK);
+                reply.writeInt(projectionTypes());
+                break;
+            case HelperProtocol.TO_FRONT: {
+                int task = data.readInt();
+                reply.writeInt(HelperProtocol.OK);
+                reply.writeInt(toFront(task) ? 1 : 0);
+                break;
+            }
+            case HelperProtocol.INSTALL: {
+                android.os.ParcelFileDescriptor apk = data.readFileDescriptor();
+                long size = data.readLong();
+                reply.writeInt(HelperProtocol.OK);
+                reply.writeString(install(apk, size));
+                break;
+            }
             case HelperProtocol.EXIT:
                 reply.writeInt(HelperProtocol.OK);
                 // Answer first, then leave: a newer helper replaces this one.
@@ -103,6 +174,20 @@ final class Actions {
                 break;
             default:
                 throw new IllegalArgumentException("unknown transaction " + code);
+        }
+    }
+
+    // UiModeManager.getActiveProjectionTypes() (Android 12+), through the uimode service: bit 1 is
+    // automotive projection, i.e. Android Auto is driving a car screen. -1 if it cannot be read.
+    private static int projectionTypes() {
+        if (Helper.sdk() < 31) return -1;
+        try {
+            Object binder = Class.forName("android.os.ServiceManager").getMethod("getService", String.class).invoke(null, "uimode");
+            Object ui = Class.forName("android.app.IUiModeManager$Stub").getMethod("asInterface", android.os.IBinder.class).invoke(null, binder);
+            return (Integer) ui.getClass().getMethod("getActiveProjectionTypes").invoke(ui);
+        } catch (Throwable t) {
+            System.err.println("hush_helper: projection state unavailable: " + t);
+            return -1;
         }
     }
 
@@ -117,7 +202,7 @@ final class Actions {
         forceStopSpotify();
         boolean inFront = front.startsWith(Commands.SPOTIFY + "/");
         Exec.sh(inFront ? Commands.openCommand(spotifyActivity) + "; " + Commands.ALLOWLIST : Commands.ALLOWLIST);
-        return "realActivity=" + front + (inFront ? "\n" + Commands.OPENED : "");
+        return "realActivity=" + front + "\ntaskId=" + frontTask + (inFront ? "\n" + Commands.OPENED : "");
     }
 
     // True if Android's activity service was called directly, false if the shell command was used.

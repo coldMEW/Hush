@@ -140,8 +140,8 @@ public class HelperSetupActivity extends Activity {
 
         int pairDesc;
         switch (ps) {
-            case SEARCHING: pairDesc = R.string.hs_pair_searching; break;
-            case FOUND: pairDesc = R.string.hs_pair_found; break;
+            case SEARCHING: pairDesc = PairingService.popupClosed() ? R.string.hs_pair_closed : R.string.hs_pair_searching; break;
+            case FOUND: pairDesc = isInMultiWindowMode() ? R.string.hs_pair_found_here : R.string.hs_pair_found; break;
             case PAIRING: case STARTING: pairDesc = R.string.pair_working_text; break;
             case WRONG_CODE: pairDesc = R.string.pair_wrong_text; break;
             case FAILED: pairDesc = R.string.pair_failed_text; break;
@@ -154,7 +154,10 @@ public class HelperSetupActivity extends Activity {
         // debugging and starts a fresh search. Only an actual pairing in progress disables it.
         boolean working = ps == PairingService.State.PAIRING || ps == PairingService.State.STARTING;
         state(stepPair, paired && !pairing, wifi && !working);   // Developer options cannot always be read
-        boolean askCode = ps == PairingService.State.FOUND || ps == PairingService.State.WRONG_CODE;
+        // The code box here works only side by side with Settings (split screen): switching to Hush
+        // in full screen closes the pairing popup, and its code with it. Otherwise the code goes into
+        // Hush's notification, which pops up over Settings.
+        boolean askCode = (ps == PairingService.State.FOUND || ps == PairingService.State.WRONG_CODE) && isInMultiWindowMode();
         int codeVisibility = askCode ? View.VISIBLE : View.GONE;
         if (codeRow.getVisibility() != codeVisibility) codeRow.setVisibility(codeVisibility);
 

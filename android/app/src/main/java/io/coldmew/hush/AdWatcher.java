@@ -173,19 +173,23 @@ public class AdWatcher extends NotificationListenerService {
             // The playlist/album to come back to after a skip. Taken as soon as Spotify reports it,
             // also while the first song is still loading or an ad plays: when you switch playlists
             // and an ad comes before the new one's first song, the new playlist is the right one.
+            // Every kind of source counts (a song picked from search plays in a "spotify:track:"
+            // context, radio in "spotify:station:", ...): remembering only playlists and albums
+            // kept an older playlist here, and the skip then switched to that old playlist.
             String ctx = m.getString(KEY_CONTEXT);
-            if (ctx != null && (ctx.startsWith("spotify:playlist:") || ctx.startsWith("spotify:album:")
-                    || ctx.startsWith("spotify:artist:") || ctx.startsWith("spotify:user:") || ctx.startsWith("spotify:collection")))
-                lastContext = ctx;
+            if (ctx != null && ctx.startsWith("spotify:")) lastContext = ctx;
             String id = m.getString(MediaMetadata.METADATA_KEY_MEDIA_ID);
             if (!ad && (playing || starting) && id != null && id.startsWith("spotify:")) {
                 lastTrack = id;
-                if (ctx == null || !ctx.startsWith("spotify:")) lastContext = null;   // e.g. a single song
+                if (ctx == null || !ctx.startsWith("spotify:")) lastContext = null;   // no source reported
             }
         }
 
         Prefs p = new Prefs(this);
-        if (!ad || !p.enabled() || Prefs.MODE_OFF.equals(p.mode())) {
+        String mode = p.mode();
+        // In the car, the user's choice for Android Auto replaces Skip (Mute and Do nothing stay).
+        if (ad && Prefs.MODE_RESTART.equals(mode) && Car.connected(this)) mode = p.carMode();
+        if (!ad || !p.enabled() || Prefs.MODE_OFF.equals(mode)) {
             if (muting) {   // ad over (or Hush switched off): sound back on
                 muting = false;
                 Hush.unmuteIfNeeded(this);
@@ -206,7 +210,7 @@ public class AdWatcher extends NotificationListenerService {
             Events.add(this, Events.AD, "Ad break started: " + describe(m));
         }
         boolean recentFail = System.currentTimeMillis() - Skipper.lastFailAt < 120_000;
-        boolean skipMode = Prefs.MODE_RESTART.equals(p.mode());
+        boolean skipMode = Prefs.MODE_RESTART.equals(mode);
         if (skipMode && Shell.ready() && !recentFail) {
             Skipper.start(this, false);
         } else if (!muting) {

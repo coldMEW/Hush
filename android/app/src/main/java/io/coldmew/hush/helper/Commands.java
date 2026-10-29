@@ -18,7 +18,7 @@ public final class Commands {
     public static final int STOP_READ_FRONT = 1, ALLOW_AUDIO = 2, OPEN_AND_ALLOW = 3, RESTART = 4,
             MEDIA_PLAY = 5, KEY_PLAY = 6, OPEN_URI = 7, REPAIR_MUTE = 8, UNFREEZE = 9, IS_FROZEN = 10,
             MUTED_STATE = 11, FRONT = 12, HOME = 13, OPEN_APP = 14, RESET_AUDIO = 15,
-            ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17;
+            ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17, USB_DEBUGGING_STATE = 18, USB_DEBUGGING_ON = 19;
 
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9_.$/]{1,255}");
     private static final Pattern PLAYABLE = Pattern.compile("spotify:(playlist|album):[A-Za-z0-9]{1,64}");
@@ -67,6 +67,11 @@ public final class Commands {
             case RESET_AUDIO: return RESET;
             case ALLOW_AND_UNFREEZE: return ALLOW + "; " + UNFREEZE_CMD;
             case GRANT_SECURE_SETTINGS: return "pm grant " + arg(a) + " android.permission.WRITE_SECURE_SETTINGS 2>&1";
+            // USB debugging keeps Android's debugging service (and with it Hush's helper) running when
+            // Wi-Fi drops and Android switches Wireless debugging off. Apps cannot read it on newer
+            // Android versions, so the helper reads and sets it.
+            case USB_DEBUGGING_STATE: return "settings get global adb_enabled";
+            case USB_DEBUGGING_ON: return "settings put global adb_enabled 1";
             default: throw new IllegalArgumentException("unknown action " + action);
         }
     }

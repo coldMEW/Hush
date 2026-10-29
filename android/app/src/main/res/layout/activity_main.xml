@@ -180,6 +180,10 @@
 
             <View style="@style/Divider" />
 
+            <include android:id="@+id/opt_car" layout="@layout/row_nav" />
+
+            <View style="@style/Divider" />
+
             <include android:id="@+id/opt_dns" layout="@layout/row_switch" />
 
             <View style="@style/Divider" />
@@ -200,6 +204,14 @@
                 android:id="@+id/opt_auto"
                 layout="@layout/row_switch"
                 android:visibility="gone" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_update" layout="@layout/row_nav" />
+
+            <View style="@style/Divider" />
+
+            <include android:id="@+id/opt_update_check" layout="@layout/row_switch" />
 
             <View style="@style/Divider" />
 

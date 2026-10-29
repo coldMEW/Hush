@@ -64,7 +64,11 @@ VPN. It is built so that neither can be turned against the phone.
 - Release builds contain no debug or info logging; nothing about what you play is written to the
   system log.
 - Hush has no analytics, no crash reporting and no network access beyond forwarding Spotify's DNS
-  lookups.
+  lookups and, unless turned off, one request a day to GitHub's public "latest release" API to see
+  if there is a newer Hush (nothing about the user or the phone is sent).
+- Updates are installed only if the APK matches the SHA-256 GitHub publishes for it, is Hush, is
+  newer than the installed version and is signed with the same key. Through Hush's helper this
+  runs `pm install -r` with the verified file; the helper accepts it only from Hush.
 
 **Build**
 - Release APKs are minified and signed with APK Signature Scheme v2 and v3. The signing key is not

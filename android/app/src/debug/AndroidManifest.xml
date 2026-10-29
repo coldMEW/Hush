@@ -22,6 +22,7 @@
                 <action android:name="io.coldmew.hush.TEST_SLEEP" />
                 <action android:name="io.coldmew.hush.TEST_HELPER" />
                 <action android:name="io.coldmew.hush.TEST_PAIR" />
+                <action android:name="io.coldmew.hush.TEST_PLAY" />
             </intent-filter>
         </receiver>
     </application>

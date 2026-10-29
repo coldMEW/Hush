@@ -177,6 +177,63 @@ public final class HushHelper {
         }
     }
 
+    // Brings the task with this id back to the front (the exact window the user was in). False if the
+    // helper is not connected or the device does not allow it; the caller then reopens the app.
+    public static boolean toFront(int task) {
+        IBinder b = binder;
+        if (b == null || task <= 0) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(HelperProtocol.DESCRIPTOR);
+            data.writeInt(task);
+            return b.transact(HelperProtocol.TO_FRONT, data, reply, 0) && reply.readInt() == HelperProtocol.OK && reply.readInt() == 1;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
+    }
+
+    // Installs a Hush update through the helper (see HelperProtocol.INSTALL). Returns pm's output
+    // ("Success" when it worked), or null if the helper is not connected.
+    public static String install(java.io.File apk) {
+        IBinder b = binder;
+        if (b == null) return null;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try (android.os.ParcelFileDescriptor f = android.os.ParcelFileDescriptor.open(apk, android.os.ParcelFileDescriptor.MODE_READ_ONLY)) {
+            data.writeInterfaceToken(HelperProtocol.DESCRIPTOR);
+            data.writeFileDescriptor(f.getFileDescriptor());
+            data.writeLong(apk.length());
+            if (!b.transact(HelperProtocol.INSTALL, data, reply, 0) || reply.readInt() != HelperProtocol.OK) return null;
+            return reply.readString();
+        } catch (Exception e) {
+            // The helper exits when its APK is replaced, so the reply can be lost even though the
+            // install worked; the caller checks the installed version.
+            return null;
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
+    }
+
+    // Android's active projection types as the helper reads them (bit 1: Android Auto), or -1.
+    public static int projection() {
+        IBinder b = binder;
+        if (b == null) return -1;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(HelperProtocol.DESCRIPTOR);
+            if (!b.transact(HelperProtocol.PROJECTION, data, reply, 0) || reply.readInt() != HelperProtocol.OK) return -1;
+            return reply.readInt();
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
+    }
+
     // Helper version and pid, or null if not connected.
     public static int[] ping() {
         IBinder b = binder;

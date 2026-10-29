@@ -4,6 +4,39 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.3] - 2026-10-29
+
+### Fixed
+- After picking a song from search, an artist's page or radio, an ad could make Spotify come back
+  on the playlist you were playing before. Hush now remembers every kind of source, and never
+  switches you back to an older playlist.
+- Pairing: the box for the pairing code disappeared when you went back to Hush to type it, and
+  Start skipping stayed grey. The code notification now pops up over Settings so the code can be
+  typed without leaving the pairing popup, and Hush explains what to do if the popup was closed.
+- Skipping stopped when Wi-Fi was turned off (mobile data), on phones with USB debugging off:
+  Android then stops its debugging service and Hush's helper with it. With Skip selected, Hush now
+  turns USB debugging on (shown in Recent activity). The main screen also no longer says "Tap
+  Resume" when the real reason is no Wi-Fi.
+- **Block ad servers** could switch itself on after a restart or update for people who had never
+  touched it, and Hush then asked for VPN permission ("Needs attention"). It now stays as you set it.
+- After a skip, the app you were in comes back exactly as it was (the same window, e.g. a running
+  navigation), instead of being reopened from its icon.
+
+### Added
+- **Updates inside Hush.** Hush tells you once when a new version is out, with a one-line summary,
+  and **Update Hush** installs the latest version: checked (SHA-256, same signing key) and, with
+  Hush's helper, without any prompt. Settings and pairing are kept. **Tell me about updates** turns
+  the daily check off.
+- **In the car (Android Auto)**: choose Skip, Mute or Do nothing while Android Auto is connected.
+  Skipping in the car no longer switches apps on the phone, which could restart Android Auto and
+  reset navigation.
+- If notification access stays off ("Restricted setting" on Android 13+ for apps installed outside
+  the Play Store), Hush shows how to allow it, with a button to App info.
+- **Copy diagnostics** also includes the Spotify version, Wi-Fi and Android Auto state, and the
+  last problems Hush logged.
+- Recent activity says when skipping is paused because Hush's helper needs Wi-Fi to start, and
+  when it resumes.
+
 ## [2.0.2] - 2026-10-27
 
 ### Fixed

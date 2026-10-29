@@ -64,6 +64,13 @@ public class CommandsTest {
         assertEquals("dumpsys activity recents | sed -n '/Recent #0/,/Recent #1/p' | head -40", Commands.build(Commands.FRONT, null));
     }
 
+    // Only reads and switches on USB debugging; the argument is ignored, so nothing else can run.
+    @Test public void usbDebuggingCommandsAreFixed() {
+        assertEquals("settings get global adb_enabled", Commands.build(Commands.USB_DEBUGGING_STATE, null));
+        assertEquals("settings put global adb_enabled 1", Commands.build(Commands.USB_DEBUGGING_ON, null));
+        assertEquals("settings put global adb_enabled 1", Commands.build(Commands.USB_DEBUGGING_ON, "x; reboot"));
+    }
+
     @Test public void mutedStateIsOneCall() {
         String c = Commands.build(Commands.MUTED_STATE, null);
         assertTrue(c.startsWith("P=$(pidof 'com.spotify.music' | cut -d' ' -f1); [ -n \"$P\" ] && dumpsys audio"));

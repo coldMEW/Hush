@@ -14,7 +14,24 @@ import java.nio.charset.StandardCharsets;
 // Debug builds only. Protected by the DUMP permission, which only the shell (adb) holds.
 public class DebugReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context c, Intent i) {
-        if ("io.coldmew.hush.TEST_SKIP".equals(i.getAction())) {
+        if ("io.coldmew.hush.TEST_PLAY".equals(i.getAction())) {
+            // Ways to start one song in Spotify: --es uri spotify:track:X --es how uri|id|search|prepare
+            String uri = i.getStringExtra("uri"), how = i.getStringExtra("how");
+            android.os.Bundle extras = new android.os.Bundle();
+            String ctx = i.getStringExtra("context");
+            if (ctx != null) extras.putString("android.media.extra.CONTEXT_URI", ctx);
+            for (android.media.session.MediaController mc : c.getSystemService(android.media.session.MediaSessionManager.class)
+                    .getActiveSessions(new android.content.ComponentName(c, AdWatcher.class))) {
+                if (!Hush.SPOTIFY.equals(mc.getPackageName())) continue;
+                android.media.session.MediaController.TransportControls t = mc.getTransportControls();
+                if ("id".equals(how)) t.playFromMediaId(uri, extras);
+                else if ("search".equals(how)) t.playFromSearch(uri, extras);
+                else if ("prepare".equals(how)) t.prepareFromUri(android.net.Uri.parse(uri), extras);
+                else t.playFromUri(android.net.Uri.parse(uri), extras);
+                Log.i("Hush", "TEST_PLAY " + how + " " + uri + " actions=" + (mc.getPlaybackState() == null ? -1 : mc.getPlaybackState().getActions()));
+                break;
+            }
+        } else if ("io.coldmew.hush.TEST_SKIP".equals(i.getAction())) {
             Skipper.debugForcePlaylistFix = i.getBooleanExtra("playlist", false);
             Skipper.debugNoButton = i.getBooleanExtra("nobutton", false);   // test the fallback
             Skipper.start(c, true);
@@ -35,7 +52,8 @@ public class DebugReceiver extends BroadcastReceiver {
             Log.i("Hush", "HELPER ready=" + HushHelper.ready() + " dev="
                     + android.provider.Settings.Global.getInt(c.getContentResolver(), android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, -1)
                     + " wifi=" + HelperControl.onWifi(c) + " debugging=" + HelperControl.debuggingOn(c)
-                    + " canToggle=" + HelperControl.canToggleDebugging(c) + "\n" + HelperControl.diagnostics(c));
+                    + " canToggle=" + HelperControl.canToggleDebugging(c) + " car=" + Car.connected(c)
+                    + " projection=" + HushHelper.projection() + "\n" + HelperControl.diagnostics(c));
             if (i.getBooleanExtra("start", false)) {
                 try (FileOutputStream f = new FileOutputStream(new File(c.getFilesDir(), "helper-start.sh"))) {
                     f.write(HushHelper.startCommand(c).getBytes(StandardCharsets.UTF_8));

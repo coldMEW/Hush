@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.coldmew.hush.helper.Commands;
+import io.coldmew.hush.helper.HushHelper;
 
 // Restart-skip: force-stopping Spotify drops the ad break it holds in memory; a cold start then
 // resumes the queue without it. What this relies on (see docs/HOW-IT-WORKS.md):
@@ -85,6 +86,10 @@ final class Skipper {
         boolean noButton = BuildConfig.DEBUG && debugNoButton;
         debugNoButton = false;
         ComponentName button = noButton ? null : mediaButtonReceiver(c);
+        // Android Auto: Skip still restarts Spotify, but nothing is brought to the front on the phone
+        // (no app restored, no playlist link): switching apps can restart the car screen and reset
+        // navigation, and the phone's own screen is not what the driver sees.
+        boolean car = Car.connected(c);
 
         // Everything above is prepared before Spotify is stopped: the ad is audible until then.
         // One shell call reads the app in front (known even while the phone is locked) and stops
@@ -95,7 +100,8 @@ final class Skipper {
         String out = Shell.run(Commands.STOP_READ_FRONT, spotifyActivity);
         boolean spotifyInFront = out.contains(Commands.OPENED);
         String prev = spotifyInFront ? Hush.SPOTIFY : frontPackage(out);
-        String where = !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
+        int prevTask = frontTask(out);
+        String where = car ? "Android Auto" : !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
 
         Result r = Result.NO_SESSION;
         String audio = "", note = "";
@@ -117,18 +123,18 @@ final class Skipper {
             step(t0, (attempt == 1 ? "" : "retry ") + (mc != null ? "session" : "no session") + (viaButton ? " (button)" : ""));
             if (mc == null) { r = Result.NO_SESSION; continue; }
             BackgroundAudio.unfreeze();   // the new process exists now
-            if (!viaButton && !spotifyInFront) restore(c, prev);   // before PLAY: Spotify is only briefly in front
+            if (!viaButton && !spotifyInFront && !car) restore(c, prev, prevTask);   // before PLAY: Spotify is only briefly in front
             r = resume(c, old, 9000, t0);
             log(t0, "resume " + r);
             if (r == Result.OK) {
                 musicAt = playingAt;
-                note = fixPlaylist(c, old, context, spotifyInFront, prev, t0);
+                note = car ? "" : fixPlaylist(c, old, context, spotifyInFront, prev, prevTask, t0);
                 audio = keepAudible(c, old, t0);
                 break;
             }
         }
         // Spotify may have come to the front again after a failed attempt.
-        if (!spotifyInFront && Hush.SPOTIFY.equals(frontPackage())) restore(c, prev);
+        if (!spotifyInFront && !car && Hush.SPOTIFY.equals(frontPackage())) restore(c, prev, prevTask);
 
         double secs = ((musicAt > 0 ? musicAt : SystemClock.elapsedRealtime()) - t0) / 1000.0;
         String s = String.format(Locale.US, "%.1f s", secs);
@@ -202,7 +208,7 @@ final class Skipper {
     // that was playing again. Spotify (Free) ignores the session's play-from-URI command, but its
     // "<uri>:play" link works for playlists and albums. Returns a note for the activity log.
     @SuppressLint("WrongConstant")   // Spotify-specific metadata keys
-    private static String fixPlaylist(Context c, Set<Object> old, String want, boolean spotifyInFront, String prev, long t0) {
+    private static String fixPlaylist(Context c, Set<Object> old, String want, boolean spotifyInFront, String prev, int prevTask, long t0) {
         if (want == null) return "";
         MediaController mc = latest(c, old);
         MediaMetadata m = mc == null ? null : mc.getMetadata();
@@ -217,7 +223,7 @@ final class Skipper {
         if (now == null || now.equals(want)) return "";
         if (!Commands.playable(want)) return ", Spotify switched playlist";
         Shell.run(Commands.OPEN_URI, want);
-        if (!spotifyInFront) { sleep(800); restore(c, prev); }
+        if (!spotifyInFront) { sleep(800); restore(c, prev, prevTask); }
         long end = SystemClock.elapsedRealtime() + 8000;
         while (SystemClock.elapsedRealtime() < end) {
             sleep(250);
@@ -317,6 +323,13 @@ final class Skipper {
     // In the top task's entry: its real activity, the component of its intent, or (home) its
     // activity. The task line's "A=" field is an affinity, which need not be a package name.
     private static final Pattern FRONT = Pattern.compile("(?:realActivity=|cmp=|I=)([A-Za-z0-9_.]+)/");
+    private static final Pattern TASK = Pattern.compile("taskId=([0-9]+)");
+
+    // Id of the task that was in front, as the helper read it before the restart (-1 if unknown).
+    static int frontTask(String out) {
+        Matcher m = TASK.matcher(out);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
+    }
 
     private static String frontPackage() { return frontPackage(Shell.run(Commands.FRONT)); }
 
@@ -327,9 +340,13 @@ final class Skipper {
         return m.find() ? m.group(1) : null;
     }
 
-    // Brings back the app that was in front. Starting an activity does not wake the screen, so this
-    // also works while the phone is locked: Spotify is not left in front for the next unlock.
-    private static void restore(Context c, String pkg) {
+    // Brings back the app that was in front. First the exact task (the same window in the same state,
+    // e.g. a running navigation), as the recents screen does; if that is not possible, the app is
+    // opened from its launcher entry, which also returns its existing window. Neither wakes the
+    // screen, so this also works while the phone is locked: Spotify is not left in front for the
+    // next unlock.
+    private static void restore(Context c, String pkg, int task) {
+        if (!Hush.SPOTIFY.equals(pkg) && HushHelper.toFront(task)) return;
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         ResolveInfo h = c.getPackageManager().resolveActivity(home, 0);
         Intent launch = pkg == null ? null : c.getPackageManager().getLaunchIntentForPackage(pkg);

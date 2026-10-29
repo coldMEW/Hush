@@ -40,6 +40,33 @@
     <string name="setup_spotify_missing">Spotify isn\'t installed on this phone.</string>
     <string name="setup_listener">Notification access</string>
     <string name="setup_listener_desc">Lets Hush see when Spotify starts an ad. Hush doesn\'t read your notifications.</string>
+    <string name="setup_restricted">Switch greyed out?</string>
+    <string name="setup_restricted_desc">Android blocks it for apps installed outside the Play Store. Tap App info, then ⋮ at the top right, then Allow restricted settings. Then tap Allow above again.</string>
+    <string name="action_app_info">App info</string>
+    <string name="opt_update">Update Hush</string>
+    <string name="opt_update_desc">Hush %1$s. Tap to get the latest version.</string>
+    <string name="opt_update_available">Hush %1$s is available: %2$s</string>
+    <string name="opt_update_available_plain">Hush %1$s is available. Tap to update.</string>
+    <string name="opt_update_check">Tell me about updates</string>
+    <string name="opt_update_check_desc">Once a day Hush asks GitHub if there is a new version. Nothing about you or your phone is sent.</string>
+    <string name="update_title">Hush %1$s is available</string>
+    <string name="update_text_plain">A new version with fixes and improvements.</string>
+    <string name="update_kept">Your settings and pairing are kept, no new setup needed.</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Not now</string>
+    <string name="update_working">Downloading and checking the update…</string>
+    <string name="update_latest">Hush %1$s is the latest version.</string>
+    <string name="update_offline">Couldn\'t reach GitHub. Check your connection and try again.</string>
+    <string name="update_bad">The download didn\'t pass Hush\'s checks, so it wasn\'t installed. Try again later.</string>
+    <string name="update_permission">Allow Hush to install its update, then tap Update again.</string>
+    <string name="update_failed">The update couldn\'t be installed. You can also get it from GitHub Releases.</string>
+    <string name="opt_car">In the car (Android Auto)</string>
+    <string name="car_skip">Skip</string>
+    <string name="car_mute">Mute</string>
+    <string name="car_off">Do nothing</string>
+    <string name="car_desc_skip">Skip while Android Auto is connected, without switching apps on the phone, so navigation keeps running. If Android Auto still restarts during a skip, choose Mute.</string>
+    <string name="car_desc_mute">Mute ads while Android Auto is connected.</string>
+    <string name="car_desc_off">Let ads play while Android Auto is connected.</string>
     <string name="setup_vpn">DNS filter permission</string>
     <string name="setup_vpn_desc">Filters Spotify\'s traffic only. Other apps aren\'t affected.</string>
     <string name="setup_shizuku">Shizuku</string>
@@ -141,6 +168,7 @@
     <!-- Notifications -->
     <string name="notif_channel_status">Protection status</string>
     <string name="notif_channel_alert">Problems</string>
+    <string name="notif_channel_pair">Pairing code</string>
     <string name="notif_title">Hush is on</string>
     <plurals name="notif_text">
         <item quantity="one">%1$d ad break skipped · %2$d muted</item>
@@ -163,6 +191,8 @@
     <string name="setup_no_shizuku_desc">Optional: pair Hush once and Shizuku isn\'t needed anymore, not even after a reboot.</string>
     <string name="setup_skip_pair">Pair Hush with Wireless debugging again to keep skipping.</string>
     <string name="setup_skip_off">Wireless debugging is off. Turn it on and Hush resumes by itself.</string>
+    <string name="setup_skip_wifi">Paused: skipping needs Wi-Fi to start again (no internet needed). Hush resumes by itself when Wi-Fi is back.</string>
+    <string name="action_wifi">Wi-Fi</string>
     <string name="setup_skip_resume">Paused because Wireless debugging is off. Tap Resume.</string>
     <string name="action_resume">Resume</string>
     <string name="v_skip_shizuku">Skip (Shizuku)</string>
@@ -175,10 +205,12 @@
     <string name="hs_dev">Turn on Developer options</string>
     <string name="hs_dev_desc">In About phone, tap Build number seven times.</string>
     <string name="hs_pair">Pair Hush</string>
-    <string name="hs_pair_desc">Tap Pair. In Wireless debugging, turn it on, tap Pair device with pairing code, and type the code into Hush\'s notification.</string>
+    <string name="hs_pair_desc">Tap Pair. In Wireless debugging, turn it on and tap Pair device with pairing code. Stay on that screen: Hush\'s notification pops up there, type the code into it.</string>
     <string name="hs_pair_wifi">Connect to Wi-Fi first. Wireless debugging works only on Wi-Fi (no internet needed).</string>
     <string name="hs_pair_searching">Waiting for the code. In Wireless debugging, tap Pair device with pairing code.</string>
-    <string name="hs_pair_found">Type the six-digit code into Hush\'s notification, or here.</string>
+    <string name="hs_pair_found">Go back to Settings and keep the pairing code open. Type the code into Hush\'s notification there (pull down from the top if it\'s gone).</string>
+    <string name="hs_pair_found_here">Type the six-digit code here or into Hush\'s notification.</string>
+    <string name="hs_pair_closed">The pairing code closed when you left Settings. Tap Pair, tap Pair device with pairing code again, and type the new code into Hush\'s notification without leaving that screen.</string>
     <string name="hs_pair_action">Pair</string>
     <string name="hs_pair_send">Pair</string>
     <string name="hs_maker">One more switch on this phone</string>
@@ -196,6 +228,7 @@
 
     <string name="pair_searching_title">Pairing Hush</string>
     <string name="pair_searching_text">In Wireless debugging, tap Pair device with pairing code.</string>
+    <string name="pair_closed_text">The pairing code closed. Tap Pair device with pairing code again and type the new code here without leaving that screen.</string>
     <string name="pair_found_title">Enter the pairing code</string>
     <string name="pair_found_text">Type the six-digit code shown in Settings.</string>
     <string name="pair_enter_code">Enter code</string>
