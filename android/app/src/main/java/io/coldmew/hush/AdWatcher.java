@@ -2,7 +2,7 @@ package io.coldmew.hush;
 
 import android.annotation.SuppressLint;
 import android.content.ComponentName;
-import android.media.AudioManager;
+import android.content.Context;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSession;
@@ -106,6 +106,7 @@ public class AdWatcher extends NotificationListenerService {
         }
         watched.clear();   // sessions that went away (e.g. Spotify was restarted)
         watched.putAll(keep);
+        if (keep.isEmpty()) { spotify = null; BackgroundAudio.idle(); }   // Spotify is gone
     }
 
     private void changed(MediaController c) {
@@ -121,6 +122,27 @@ public class AdWatcher extends NotificationListenerService {
     }
 
     static boolean isAd(MediaController c) { return isAd(c.getMetadata()); }
+
+    static boolean inBreak() { synchronized (LOCK) { return inBreak; } }
+
+    static boolean spotifyPlaying() {
+        AdWatcher w = instance;
+        MediaController mc = w == null ? null : w.spotify;
+        PlaybackState ps = mc == null ? null : mc.getPlaybackState();
+        return ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
+    }
+
+    // A skip that could not run (Android Auto was using Spotify, see Skipper): mute this break
+    // instead; the usual "ad over" check turns the sound back on.
+    static void muteInstead(Context c) {
+        synchronized (LOCK) {
+            if (muting) return;
+            muting = true;
+        }
+        Hush.muteAd(c);
+        new Prefs(c).add(Prefs.MUTED, 1);
+        Hush.refreshNotification(c);
+    }
 
     @SuppressLint("WrongConstant")   // Spotify-specific metadata keys
     static boolean isAd(MediaMetadata m) {
@@ -196,6 +218,7 @@ public class AdWatcher extends NotificationListenerService {
                 Events.add(this, Events.MUTE, "Ad over, sound back on");
             }
             if (!ad && playing) inBreak = false;
+            if (!playing && !starting) BackgroundAudio.idle();   // a reset left for when Spotify stops
             return;
         }
         if (Skipper.busy()) return;   // a restart is in progress; its own checks cover this
@@ -211,13 +234,12 @@ public class AdWatcher extends NotificationListenerService {
         }
         boolean recentFail = System.currentTimeMillis() - Skipper.lastFailAt < 120_000;
         boolean skipMode = Prefs.MODE_RESTART.equals(mode);
-        if (skipMode && Shell.ready() && !recentFail) {
+        // A break already muted (a skip could not run) stays muted until it is over.
+        if (skipMode && Shell.ready() && !recentFail && !muting) {
             Skipper.start(this, false);
         } else if (!muting) {
             muting = true;
-            AudioManager am = getSystemService(AudioManager.class);
-            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
-            p.mutedByUs(true);
+            Hush.muteAd(this);
             p.add(Prefs.MUTED, 1);
             boolean noShizuku = skipMode && !Shell.ready();
             Events.add(this, Events.MUTE, "Ad muted" + (!skipMode ? "" : noShizuku ? " (skipping not ready)" : " (skip failed)"));

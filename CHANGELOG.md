@@ -4,6 +4,30 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.4] - 2026-10-30
+
+### Fixed
+- Android Auto: a skip could restart Android Auto and reset navigation. Android Auto reads
+  Spotify's media list right when an ad starts, and stopping Spotify in that moment made Android
+  stop Android Auto too. Hush now waits until Android Auto is done (usually less than a second);
+  if it is not done within 3 seconds, that ad is muted instead.
+- Android Auto: **Mute** did nothing in the car, because Android Auto does not use the phone's
+  music volume. While Android Auto is connected, Hush now mutes Spotify itself and turns it back on
+  when the ad is over (needs Hush's helper or Shizuku).
+- A skip or **Test ad skip** could fail with "Spotify did not resume playback" on phones that do
+  not let apps start playing in the background (reported on Xiaomi). The second try now keeps
+  Spotify open until the music plays, then returns to the app you were in.
+- Hush now also finds the app you were in on phones where it could not read the list of recent
+  apps (Recent activity said "in another app").
+- Turning Hush off while music played could make Spotify go silent (Android 15 and later, seen
+  in Android Auto). Hush now gives Spotify's background audio back to Android only once the music
+  is paused or stopped.
+
+### Changed
+- A failed skip in Recent activity now lists the steps it went through, which makes bug reports
+  easier to follow. On Xiaomi phones the "Spotify didn't resume" notice says to allow Autostart
+  for Spotify and set its battery saver to No restrictions.
+
 ## [2.0.3] - 2026-10-29
 
 ### Fixed
@@ -180,6 +204,8 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[2.0.4]: https://github.com/coldMEW/Hush/releases/tag/v2.0.4
+[2.0.3]: https://github.com/coldMEW/Hush/releases/tag/v2.0.3
 [2.0.2]: https://github.com/coldMEW/Hush/releases/tag/v2.0.2
 [2.0.1]: https://github.com/coldMEW/Hush/releases/tag/v2.0.1
 [2.0.0]: https://github.com/coldMEW/Hush/releases/tag/v2.0.0

@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.net.VpnService;
+import android.os.Build;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 
@@ -30,13 +31,13 @@ final class Hush {
         if (on) {
             Events.add(c, Events.INFO, "Hush turned on");
             applyDns(c);
-            BackgroundAudio.allow();
+            BackgroundAudio.apply(c);
             HelperControl.keepRunningOffWifiAsync(c);
             try { NotificationListenerService.requestRebind(new ComponentName(c, AdWatcher.class)); } catch (Exception ignored) {}
         } else {
             Events.add(c, Events.INFO, "Hush turned off");
             stopVpn(c);
-            BackgroundAudio.reset();
+            BackgroundAudio.resetWhenIdle();
             unmuteIfNeeded(c);
         }
         refreshNotification(c);
@@ -56,8 +57,31 @@ final class Hush {
         if (DnsVpnService.running) c.startService(new Intent(c, DnsVpnService.class).setAction(DnsVpnService.ACTION_STOP));
     }
 
+    // Muting Spotify itself runs a shell command, which takes a moment: done off the caller's
+    // thread, one at a time so a mute and the unmute after it never swap places.
+    private static final java.util.concurrent.ExecutorService SPOTIFY_AUDIO =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    // Mutes an ad. Android Auto plays Spotify's audio itself, so the phone's music volume does not
+    // reach the car: there Spotify is muted directly (needs the helper or Shizuku). Elsewhere the
+    // music volume is muted, which works without any setup.
+    static void muteAd(Context c) {
+        Prefs p = new Prefs(c);
+        if (Shell.ready() && Car.connected(c)) {
+            p.mutedSpotify(true);
+            SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.MUTE_SPOTIFY));
+        } else {
+            c.getSystemService(AudioManager.class).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+            p.mutedByUs(true);
+        }
+    }
+
     static void unmuteIfNeeded(Context c) {
         Prefs p = new Prefs(c);
+        if (p.mutedSpotify() && Shell.ready()) {   // without a backend it stays marked and is undone later
+            p.mutedSpotify(false);
+            SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_SPOTIFY));
+        }
         if (!p.mutedByUs()) return;
         c.getSystemService(AudioManager.class).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
         p.mutedByUs(false);
@@ -104,11 +128,16 @@ final class Hush {
         else nm.cancel(NOTIF_STATUS);
     }
 
+    // Xiaomi, Redmi and POCO phones (MIUI / HyperOS) add their own background limits ("Autostart",
+    // battery saver) on top of Android's.
+    static boolean isXiaomi() { return "xiaomi".equalsIgnoreCase(Build.MANUFACTURER); }
+
     static void alert(Context c, String title, String text, Intent tap) {
         PendingIntent pi = PendingIntent.getActivity(c, 2, tap, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         c.getSystemService(NotificationManager.class).notify(NOTIF_ALERT, new Notification.Builder(c, CH_ALERT)
                 .setSmallIcon(R.drawable.ic_stat_hush).setColor(c.getColor(R.color.accent))
-                .setContentTitle(title).setContentText(text).setContentIntent(pi).setAutoCancel(true).build());
+                .setContentTitle(title).setContentText(text).setStyle(new Notification.BigTextStyle().bigText(text))
+                .setContentIntent(pi).setAutoCancel(true).build());
     }
 
     private static boolean skipAlerted;

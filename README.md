@@ -174,7 +174,9 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
 - **When an ad plays** — *Skip* (restart Spotify), *Mute*, or *Do nothing*.
 - **Sleep timer** — use this instead of Spotify's timer; it survives ad skips.
 - **In the car (Android Auto)** — *Skip*, *Mute* or *Do nothing* while Android Auto is connected.
-  Skipping in the car never switches apps on the phone, so navigation keeps running.
+  Skipping in the car never switches apps on the phone and waits until Android Auto is not reading
+  from Spotify, so navigation keeps running. *Mute* mutes Spotify itself, since the car does not
+  use the phone's volume (needs skipping set up).
 - **DNS rules** — view or edit the filter (`block`, `nxdomain`, `redirect`, `ip`, `upstream`).
 - **Restart automatically after a reboot** — Hush brings skipping back by itself after a restart
   (Android 13+). Turn it off and on again to repeat the phone test.
@@ -249,7 +251,10 @@ bug report. It has nothing about what you listen to, and Hush never sends it any
 <summary><b>Music does not come back after a skip</b></summary>
 
 Use **Test ad skip** to reproduce it. Hush retries once and then shows a notification; tapping it
-opens Spotify. Make sure Hush has unrestricted battery use.
+opens Spotify. Make sure Hush and Spotify have unrestricted battery use. On Xiaomi, Redmi and POCO
+phones, also allow **Autostart** for Spotify and set its battery saver to **No restrictions**
+(Settings → Apps → Spotify). If it still fails, Recent activity shows the steps of the failed try:
+please include them in an issue.
 </details>
 
 <details>
@@ -270,8 +275,9 @@ Android allows one VPN at a time. Hush's ad skipping keeps working without its D
 
 - Restoring the previous playlist works for playlists and albums, not for an artist's
   "Popular" list or radio (Hush leaves those as Spotify brings them back).
-- Android Auto: the car behaviour was tested with Android's car mode on a phone, not yet in a car.
-  If a skip still restarts Android Auto, choose **Mute** under **In the car** and open an issue.
+- Android Auto: tested with real ads in Android Auto's desktop head unit (the car screen
+  emulator), not yet in a car. If a skip still restarts Android Auto, choose **Mute** under **In the
+  car** and open an issue.
 
 ## Privacy & security
 
@@ -337,6 +343,7 @@ docs/HOW-IT-WORKS.md        design notes and measurements
   is back, and smoother pairing
 - [x] v2.0.2 — DNS filter works on networks that block outside DNS (AdGuard Home, Pi-hole)
 - [x] v2.0.3 — skipping on mobile data, easier pairing, Android Auto choice, in-app updates
+- [x] v2.0.4 — Android Auto: skips keep navigation running, Mute works in the car
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 ## Contributing

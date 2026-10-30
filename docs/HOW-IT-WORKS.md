@@ -27,7 +27,8 @@ permissions, which Hush gets through its own helper (section 6), or through Shiz
 The order of steps matters:
 
 1. Note which app is in front (from the recent-tasks list, which is also correct while the phone
-   is locked) and which playlist or album is playing.
+   is locked; if a phone prints that list in a form Hush cannot read, from the resumed activity)
+   and which playlist or album is playing.
 2. Force-stop Spotify and start it again. Hush's helper reads the app in front and stops Spotify
    with two direct calls to Android's task and activity services, without starting a shell, so the
    ad stops 30 to 90 ms after it is detected. (Through Shizuku, both run in one shell call: about
@@ -41,16 +42,18 @@ The order of steps matters:
      not break skipping.
    - If Spotify was the app in front, the same shell call opens Spotify's screen right after the
      force-stop, so the home screen shows for only a moment and you stay in Spotify.
-   - If the button does not bring a new session within 3 s, Hush starts Spotify's main activity
-     instead (the 1.0.0 to 1.0.2 method). Starting an activity does not wake the screen; while the
-     phone is locked it opens behind the lock screen.
+   - If the button does not bring music back, Hush tries once more (not while Android Auto is
+     connected, see below): it stops Spotify again and starts its main activity (the 1.0.0 to 1.0.2
+     method). Starting an activity does not wake the screen; while the phone is locked it opens
+     behind the lock screen. On this second try Spotify stays in front until it plays, because some
+     phones (reported on Xiaomi) do not let an app start playback from the background at all.
 3. Wait for Spotify's **new** media session. Force-stop cancels the media-button `PendingIntent`
    Spotify registered, so a play key sent through the system before the new session exists is
    lost. This was the cause of skips that left Spotify silent over Bluetooth.
 4. If Spotify's activity was started but Spotify was in the background, bring back the app (or
-   home screen) that was in front: the exact task, as the recents screen does (same window, same
-   state, e.g. a running navigation), or the app's launcher entry if that is not possible. Not
-   while Android Auto is connected (see below).
+   home screen) that was in front (on the second try, only once the music plays): the exact task,
+   as the recents screen does (same window, same state, e.g. a running navigation), or the app's
+   launcher entry if that is not possible. Not while Android Auto is connected (see below).
 5. When the session settles (paused), press play. Hush alternates three routes until playback
    starts: the system media-key dispatcher (which also gives Spotify a temporary foreground
    allowance and avoids Android muting background audio), a transport control, and a key event.
@@ -69,6 +72,21 @@ apps on the phone can restart the Android Auto session and reset navigation, and
 screen is not what the driver sees. Users can also choose Mute or Do nothing for the car. Hush
 knows Android Auto is connected from Android's car mode or an active automotive projection (which
 only the shell may read, so Hush asks its helper).
+
+Android Auto reads Spotify's media items through Spotify's content provider, and holds a stable
+connection to it for a fraction of a second whenever the item changes, so also when an ad starts.
+Android kills an app that holds such a connection when the provider's app is stopped
+("depends on provider"): stopping Spotify in that moment killed Android Auto's projection process,
+the car screen restarted and navigation lost its route. In the car Hush therefore checks
+`dumpsys activity providers` first and stops Spotify only once Android Auto holds no stable
+connection to it (measured with real ads: held for up to 0.8 s, Spotify stopped within 0.15 s after
+it let go). If it is still held after 3 s, that ad is muted instead of skipped.
+
+Muting in the car: Android Auto captures Spotify's audio itself, so the phone's music volume does
+not reach the car (measured in the head unit: about the same level before and after). Hush mutes
+Spotify's own playback instead, with the `PLAY_AUDIO` app-op (measured: the car goes silent), and
+allows it again when the ad is over. Android keeps that app-op across a reboot, so Hush remembers
+that it set it and undoes it the next time it can.
 
 Music is typically audible again 2 to 3 seconds after the ad is stopped (3 to 4 with the activity
 route); the "Avg. resume" statistic is a little higher because it counts until Spotify reports

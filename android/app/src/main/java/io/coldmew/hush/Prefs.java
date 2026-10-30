@@ -56,6 +56,10 @@ final class Prefs {
 
     boolean mutedByUs() { return sp.getBoolean("muted_by_us", false); }
     void mutedByUs(boolean v) { sp.edit().putBoolean("muted_by_us", v).commit(); }
+    // Spotify itself was muted (PLAY_AUDIO app-op, used in Android Auto). Unlike the volume, Android
+    // keeps this across a reboot, so it is undone as soon as Hush can, never just forgotten.
+    boolean mutedSpotify() { return sp.getBoolean("muted_spotify", false); }
+    void mutedSpotify(boolean v) { sp.edit().putBoolean("muted_spotify", v).commit(); }
 
     // Hush's own helper: paired with Wireless debugging; automatic restart after a reboot (opt-in);
     // the per-phone test result (TEST_* below).

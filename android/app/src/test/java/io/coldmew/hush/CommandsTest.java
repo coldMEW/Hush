@@ -71,6 +71,18 @@ public class CommandsTest {
         assertEquals("settings put global adb_enabled 1", Commands.build(Commands.USB_DEBUGGING_ON, "x; reboot"));
     }
 
+    // Muting Spotify (Android Auto) touches only Spotify's PLAY_AUDIO, whatever the argument.
+    @Test public void spotifyMuteCommandsAreFixed() {
+        assertEquals("appops set 'com.spotify.music' PLAY_AUDIO ignore", Commands.build(Commands.MUTE_SPOTIFY, null));
+        assertEquals("appops set 'com.spotify.music' PLAY_AUDIO allow", Commands.build(Commands.UNMUTE_SPOTIFY, "x; reboot"));
+    }
+
+    @Test public void spotifyHoldersOnlyReads() {
+        String c = Commands.build(Commands.SPOTIFY_HOLDERS, "x; reboot");
+        assertTrue(c.startsWith("dumpsys activity providers 2>/dev/null | awk '"));
+        assertFalse(c.contains("reboot"));
+    }
+
     @Test public void mutedStateIsOneCall() {
         String c = Commands.build(Commands.MUTED_STATE, null);
         assertTrue(c.startsWith("P=$(pidof 'com.spotify.music' | cut -d' ' -f1); [ -n \"$P\" ] && dumpsys audio"));

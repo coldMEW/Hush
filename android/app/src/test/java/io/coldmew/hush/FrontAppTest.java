@@ -35,6 +35,18 @@ public class FrontAppTest {
                 Skipper.frontPackage("realActivity=com.google.android.apps.nexuslauncher/.NexusLauncherActivity"));
     }
 
+    // Fallback when the recents list cannot be read: the resumed activity line.
+    @Test public void resumedActivity() {
+        String line = "    topResumedActivity=ActivityRecord{86928865 u0 io.coldmew.hush/.MainActivity t451}\n";
+        assertEquals("io.coldmew.hush", Skipper.resumedPackage(line));
+        assertEquals(451, Skipper.resumedTask(line));
+        String old = "  mResumedActivity: ActivityRecord{3f2a1b u0 com.whatsapp/.Main t12}\n";
+        assertEquals("com.whatsapp", Skipper.resumedPackage(old));
+        assertEquals(12, Skipper.resumedTask(old));
+        assertNull(Skipper.resumedPackage(""));
+        assertEquals(-1, Skipper.resumedTask("no activity"));
+    }
+
     @Test public void nothingUsable() {
         assertNull(Skipper.frontPackage(""));
         assertNull(Skipper.frontPackage("* Recent #0: Task{1 #9 type=standard A=10001:x}\n"));

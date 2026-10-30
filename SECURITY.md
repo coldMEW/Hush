@@ -25,7 +25,8 @@ VPN. It is built so that neither can be turned against the phone.
   answers only calls from Hush's app uid.
 - It has no "run a command" call. It knows a fixed list of actions (stop Spotify, start or reopen
   it, allow its background audio, press play, open a Spotify link, read which app is in front and
-  whether Spotify is muted or frozen, grant Hush `WRITE_SECURE_SETTINGS`) and builds every command
+  whether Spotify is muted or frozen, mute or unmute Spotify's playback, read whether Android Auto
+  is using Spotify, grant Hush `WRITE_SECURE_SETTINGS`) and builds every command
   itself from an action number and validated arguments.
 - `WRITE_SECURE_SETTINGS` is granted only to Hush, and Hush uses it only to switch Wireless
   debugging (`adb_wifi_enabled`): on, when its helper has to be started again (after a reboot,
@@ -41,8 +42,10 @@ VPN. It is built so that neither can be turned against the phone.
 **Privileged shell (Shizuku or the helper)**
 - The only commands Hush runs are fixed: force-stop and start Spotify, return to the previous app
   or the home screen, press play or pause, open a Spotify playlist or album link, allow Spotify's
-  background-audio app-ops (reset to default when Hush is turned off), and read media, audio and
-  task state.
+  background-audio app-ops (reset to default when Hush is turned off, once Spotify is not
+  playing), mute and unmute Spotify's
+  playback (the `PLAY_AUDIO` app-op, only during an ad while Android Auto is connected), and read
+  media, audio, task and content-provider state.
 - Every value inserted into a command (package and component names, Spotify URIs) is checked
   against a strict allow-list pattern and single-quoted. Anything else is rejected; unit tests
   cover injection attempts.

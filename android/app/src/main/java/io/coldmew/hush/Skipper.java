@@ -90,6 +90,17 @@ final class Skipper {
         // (no app restored, no playlist link): switching apps can restart the car screen and reset
         // navigation, and the phone's own screen is not what the driver sees.
         boolean car = Car.connected(c);
+        // Android Auto reads Spotify's media items through Spotify's content provider, right when an
+        // ad starts. Stopping Spotify in that moment makes Android kill Android Auto too ("depends on
+        // provider"): the car screen restarts and navigation loses its route. So in the car, wait
+        // until Android Auto lets go of that provider (usually within a second); if it does not
+        // let go, mute this ad instead of skipping it.
+        if (car && !providersFree(t0)) {
+            Events.add(c, Events.INFO, test ? "Android Auto was busy with Spotify, so the test skip did not run"
+                    : "Android Auto was busy with Spotify, so this ad is muted instead of skipped");
+            if (!test) AdWatcher.muteInstead(c);
+            return;
+        }
 
         // Everything above is prepared before Spotify is stopped: the ad is audible until then.
         // One shell call reads the app in front (known even while the phone is locked) and stops
@@ -101,12 +112,21 @@ final class Skipper {
         boolean spotifyInFront = out.contains(Commands.OPENED);
         String prev = spotifyInFront ? Hush.SPOTIFY : frontPackage(out);
         int prevTask = frontTask(out);
+        if (prev == null) {   // the recents list reads differently on some phones: ask for the resumed app
+            String resumed = Shell.run(Commands.RESUMED_APP);
+            prev = resumedPackage(resumed);
+            prevTask = resumedTask(resumed);
+        }
         String where = car ? "Android Auto" : !screenOn ? "screen off" : !unlocked ? "locked" : spotifyInFront ? "in Spotify" : "in " + label(c, prev);
 
         Result r = Result.NO_SESSION;
         String audio = "", note = "";
         long musicAt = 0;   // when music was back; what the user waits for
-        for (int attempt = 1; attempt <= 2; attempt++) {
+        // No second try in the car: it stops Spotify again and opens its screen on the phone, both of
+        // which can restart Android Auto (see above). A failed skip there ends with the usual notice,
+        // and the next ads are muted for a while.
+        int attempts = car ? 1 : 2;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
             if (attempt > 1) old = tokens(c);
             boolean viaButton = attempt == 1 && button != null;
             if (viaButton) {   // Spotify plays as soon as it starts here, so the app-ops come first
@@ -123,9 +143,14 @@ final class Skipper {
             step(t0, (attempt == 1 ? "" : "retry ") + (mc != null ? "session" : "no session") + (viaButton ? " (button)" : ""));
             if (mc == null) { r = Result.NO_SESSION; continue; }
             BackgroundAudio.unfreeze();   // the new process exists now
-            if (!viaButton && !spotifyInFront && !car) restore(c, prev, prevTask);   // before PLAY: Spotify is only briefly in front
+            // First try: the app in front comes back before PLAY, so Spotify is only briefly in front.
+            // The retry keeps Spotify in front until it plays: some phones (e.g. Xiaomi's battery
+            // saver) do not let an app start playback from the background at all.
+            boolean restoreAfter = attempt > 1;
+            if (!viaButton && !spotifyInFront && !car && !restoreAfter) restore(c, prev, prevTask);
             r = resume(c, old, 9000, t0);
             log(t0, "resume " + r);
+            if (restoreAfter && !spotifyInFront && !car && r == Result.OK) restore(c, prev, prevTask);
             if (r == Result.OK) {
                 musicAt = playingAt;
                 note = car ? "" : fixPlaylist(c, old, context, spotifyInFront, prev, prevTask, t0);
@@ -152,10 +177,11 @@ final class Skipper {
             String why = r == Result.AD ? "the ad came back after restarting" : r == Result.NO_SESSION
                     ? "Spotify did not start" : "Spotify did not resume playback";
             if (!test) prefs.add(Prefs.FAILED, 1);
-            Events.add(c, Events.FAIL, (test ? "Test restart failed: " : "Skip failed: ") + why + " (" + where + ")");
+            Events.add(c, Events.FAIL, (test ? "Test restart failed: " : "Skip failed: ") + why + " (" + where + ") · steps: " + steps);
             Intent open = c.getPackageManager().getLaunchIntentForPackage(Hush.SPOTIFY);
             if (open != null && r != Result.AD)
-                Hush.alert(c, c.getString(R.string.alert_resume_title), c.getString(R.string.alert_resume_text), open);
+                Hush.alert(c, c.getString(R.string.alert_resume_title), c.getString(Hush.isXiaomi()
+                        ? R.string.alert_resume_text_xiaomi : R.string.alert_resume_text), open);
         }
         Hush.refreshNotification(c);
     }
@@ -194,6 +220,25 @@ final class Skipper {
             sleep(100);
         }
         return Result.NOT_PLAYING;
+    }
+
+    private static final long PROVIDER_WAIT_MS = 3000;
+
+    // True once Android Auto holds no stable connection to Spotify's content providers, false if it
+    // still does after PROVIDER_WAIT_MS.
+    private static boolean providersFree(long t0) {
+        long end = SystemClock.elapsedRealtime() + PROVIDER_WAIT_MS;
+        boolean waited = false;
+        while (true) {
+            String holders = Shell.run(Commands.SPOTIFY_HOLDERS).trim();
+            if (holders.isEmpty()) {
+                if (waited) step(t0, "Android Auto let go");
+                return true;
+            }
+            if (!waited) { log(t0, "waiting for " + holders); waited = true; }
+            if (SystemClock.elapsedRealtime() >= end) return false;
+            sleep(100);
+        }
     }
 
     private static void kick(MediaController mc, int n) {
@@ -332,6 +377,20 @@ final class Skipper {
     }
 
     private static String frontPackage() { return frontPackage(Shell.run(Commands.FRONT)); }
+
+    private static final Pattern RESUMED = Pattern.compile("ActivityRecord\\{[0-9a-f]+ u[0-9]+ ([A-Za-z0-9_.]+)/[^ ]* t([0-9]+)");
+
+    // Package and task of the resumed (on-screen) activity, from Commands.RESUMED_APP's output
+    // ("topResumedActivity=ActivityRecord{7d1c2a5 u0 com.example/.Main t42}"); null / -1 if unknown.
+    static String resumedPackage(String out) {
+        Matcher m = RESUMED.matcher(out);
+        return m.find() ? m.group(1) : null;
+    }
+
+    static int resumedTask(String out) {
+        Matcher m = RESUMED.matcher(out);
+        return m.find() ? Integer.parseInt(m.group(2)) : -1;
+    }
 
     // Package of the app in front, from the recents entry Commands.FRONT prints (the most recent
     // task: the app on screen, or behind the lock screen).

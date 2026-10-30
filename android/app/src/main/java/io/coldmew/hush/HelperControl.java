@@ -232,6 +232,9 @@ final class HelperControl {
             BackgroundAudio.apply(c);
             if (Build.VERSION.SDK_INT >= 33 && !canToggleDebugging(c)) Shell.run(Commands.GRANT_SECURE_SETTINGS, c.getPackageName());
             keepRunningOffWifi(c);
+            // Spotify left muted (e.g. Hush was stopped mid-ad in the car, or the phone restarted):
+            // undo it now that Hush can, unless an ad is playing right now.
+            if (!AdWatcher.inBreak()) Hush.unmuteIfNeeded(c);
         });
     }
 

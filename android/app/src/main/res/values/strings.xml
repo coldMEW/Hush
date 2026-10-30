@@ -64,7 +64,7 @@
     <string name="car_skip">Skip</string>
     <string name="car_mute">Mute</string>
     <string name="car_off">Do nothing</string>
-    <string name="car_desc_skip">Skip while Android Auto is connected, without switching apps on the phone, so navigation keeps running. If Android Auto still restarts during a skip, choose Mute.</string>
+    <string name="car_desc_skip">Skip while Android Auto is connected, without switching apps on the phone. Hush waits until Android Auto is not reading from Spotify, so navigation keeps running. If Android Auto still restarts during a skip, choose Mute.</string>
     <string name="car_desc_mute">Mute ads while Android Auto is connected.</string>
     <string name="car_desc_off">Let ads play while Android Auto is connected.</string>
     <string name="setup_vpn">DNS filter permission</string>
@@ -177,6 +177,7 @@
     <string name="notif_stop">Turn off</string>
     <string name="alert_resume_title">Spotify didn\'t resume</string>
     <string name="alert_resume_text">The ad was removed, but playback didn\'t restart. Tap to open Spotify.</string>
+    <string name="alert_resume_text_xiaomi">The ad was removed, but playback didn\'t restart. On Xiaomi phones, allow Autostart for Spotify and set its battery saver to No restrictions (Settings, Apps, Spotify). Tap to open Spotify.</string>
 
     <string name="alert_shizuku_title">Shizuku isn\'t running</string>
     <string name="alert_setup_text">Skipping needs a one-time setup, about two minutes. Tap to start.</string>

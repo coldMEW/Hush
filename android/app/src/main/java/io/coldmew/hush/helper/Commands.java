@@ -18,7 +18,8 @@ public final class Commands {
     public static final int STOP_READ_FRONT = 1, ALLOW_AUDIO = 2, OPEN_AND_ALLOW = 3, RESTART = 4,
             MEDIA_PLAY = 5, KEY_PLAY = 6, OPEN_URI = 7, REPAIR_MUTE = 8, UNFREEZE = 9, IS_FROZEN = 10,
             MUTED_STATE = 11, FRONT = 12, HOME = 13, OPEN_APP = 14, RESET_AUDIO = 15,
-            ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17, USB_DEBUGGING_STATE = 18, USB_DEBUGGING_ON = 19;
+            ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17, USB_DEBUGGING_STATE = 18, USB_DEBUGGING_ON = 19,
+            SPOTIFY_HOLDERS = 20, MUTE_SPOTIFY = 21, UNMUTE_SPOTIFY = 22, RESUMED_APP = 23;
 
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9_.$/]{1,255}");
     private static final Pattern PLAYABLE = Pattern.compile("spotify:(playlist|album):[A-Za-z0-9]{1,64}");
@@ -72,6 +73,19 @@ public final class Commands {
             // Android versions, so the helper reads and sets it.
             case USB_DEBUGGING_STATE: return "settings get global adb_enabled";
             case USB_DEBUGGING_ON: return "settings put global adb_enabled 1";
+            // Android Auto's stable connections to Spotify's content providers (it holds one while it
+            // loads an item, e.g. at the start of an ad). Android kills an app that holds one when
+            // Spotify is stopped, so a skip waits until there is none. One line per connection.
+            // System UI holds them too at times, but Android never kills it for this (persistent).
+            case SPOTIFY_HOLDERS:
+                return "dumpsys activity providers 2>/dev/null | awk '/ContentProviderRecord/{p=index($0, \"com.spotify.music/\")>0} "
+                        + "p && /->/ && index($0, \"com.google.android.projection.gearhead\")>0 && $0 ~ \" s[1-9][0-9]*/\" {print}'";
+            // Silences Spotify's own playback (Android's PLAY_AUDIO app-op), wherever it is played:
+            // the phone's volume does not reach Android Auto, which takes Spotify's audio directly.
+            case MUTE_SPOTIFY: return "appops set " + arg(SPOTIFY) + " PLAY_AUDIO ignore";
+            case UNMUTE_SPOTIFY: return "appops set " + arg(SPOTIFY) + " PLAY_AUDIO allow";
+            // The activity on screen, for phones whose recents list Hush cannot read (see Skipper).
+            case RESUMED_APP: return "dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity'";
             default: throw new IllegalArgumentException("unknown action " + action);
         }
     }
