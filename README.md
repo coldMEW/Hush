@@ -303,9 +303,20 @@ vulnerability privately, are in [SECURITY.md](SECURITY.md).
 
 ## Roadmap
 
-What changed in each version is in the [changelog](CHANGELOG.md). Next:
-
+- [x] v1.0.1 — no audio gap after skips, including with the phone locked
+- [x] v1.0.2 — no silent playback when Android freezes the restarted Spotify
+- [x] v1.0.3 — Spotify stays off screen during a skip, and its controls come back right away
+- [x] v2.0.0 — one app: no Shizuku needed, self-healing, optional automatic restart after a reboot
+- [x] v2.0.1 — fixes for playlist switches during an ad, the end-of-song timer, recovery when Wi-Fi
+  is back, and smoother pairing
+- [x] v2.0.2 — DNS filter works on networks that block outside DNS (AdGuard Home, Pi-hole)
+- [x] v2.0.3 — skipping on mobile data, easier pairing, Android Auto choice, in-app updates
+- [x] v2.0.4 — Android Auto: skips keep navigation running, Mute works in the car
+- [x] v2.0.5 — Spotify keeps its notification and keeps playing after a skip, restarts after a
+  crash, no "Hush Clone" on update, root support
 - [ ] ESP32 companion with similar features for speakers and other devices
+
+Details for each version are in the [changelog](CHANGELOG.md).
 
 ## Contributing
 
