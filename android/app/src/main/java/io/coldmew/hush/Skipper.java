@@ -42,6 +42,8 @@ final class Skipper {
     // current skip ("session 0.6 s, ready 2.9 s, playing 3.3 s") for the activity log.
     private static long playingAt;
     private static final StringBuilder steps = new StringBuilder();
+    // Set by keepAudible: a note when Spotify plays without its playback service (see checkService).
+    private static String serviceNote = "";
     // Debug builds only: run the playlist correction even when nothing changed, to test it.
     static volatile boolean debugForcePlaylistFix;
     // Debug builds only: skip the media-button start, to test the activity-start fallback.
@@ -69,6 +71,7 @@ final class Skipper {
     private static void run(Context c, boolean test) {
         long t0 = SystemClock.elapsedRealtime();
         steps.setLength(0);
+        serviceNote = "";
         Prefs prefs = new Prefs(c);
         Hush.unmuteIfNeeded(c);   // in case the mute fallback was active
         String context = AdWatcher.lastContext;   // the playlist/album to come back to
@@ -129,11 +132,11 @@ final class Skipper {
         for (int attempt = 1; attempt <= attempts; attempt++) {
             if (attempt > 1) old = tokens(c);
             boolean viaButton = attempt == 1 && button != null;
-            if (viaButton) {   // Spotify plays as soon as it starts here, so the app-ops come first
-                Shell.run(Commands.ALLOW_AUDIO);
+            if (viaButton) {   // Spotify plays as soon as it starts here, so the allowlist and app-ops come first
+                Shell.run(Commands.START_ALLOW);
                 pressPlay(c, button);
             } else if (attempt == 1) {   // the app-ops overlap Spotify's start here (~0.1 s)
-                if (spotifyInFront) Shell.run(Commands.ALLOW_AUDIO);
+                if (spotifyInFront) Shell.run(Commands.START_ALLOW);
                 else Shell.run(Commands.OPEN_AND_ALLOW, spotifyActivity);
             } else {
                 Shell.run(Commands.RESTART, spotifyActivity);
@@ -153,8 +156,28 @@ final class Skipper {
             if (restoreAfter && !spotifyInFront && !car && r == Result.OK) restore(c, prev, prevTask);
             if (r == Result.OK) {
                 musicAt = playingAt;
+                // Spotify asks for its playback service as it starts playing, or (started through
+                // its screen) up to ~20 s later. Each media key above replaced the allowlist entry
+                // with Android's own 10 s one, so it is renewed now (see checkService).
+                Shell.run(Commands.START_ALLOW);
                 note = car ? "" : fixPlaylist(c, old, context, spotifyInFront, prev, prevTask, t0);
                 audio = keepAudible(c, old, t0);
+                if (CLOSED.equals(audio)) {   // Spotify crashed right after starting: start it once more
+                    step(t0, "Spotify closed itself");
+                    // `old` stays: a Spotify that Android Auto already started again counts as new.
+                    if (button != null) { Shell.run(Commands.START_ALLOW); pressPlay(c, button); }
+                    else if (!car) Shell.run(Commands.OPEN_AND_ALLOW, spotifyActivity);
+                    mc = waitSession(c, old, 8000);
+                    if (mc != null && button == null && !spotifyInFront && !car) restore(c, prev, prevTask);
+                    r = mc == null ? Result.NO_SESSION : resume(c, old, 9000, t0);
+                    log(t0, "after Spotify closed: resume " + r);
+                    if (r == Result.OK) {
+                        Shell.run(Commands.START_ALLOW);
+                        note += ", Spotify closed itself and was started again";
+                        audio = keepAudible(c, old, t0);
+                        if (CLOSED.equals(audio)) { r = Result.NOT_PLAYING; audio = ""; }
+                    } else audio = "";
+                }
                 break;
             }
         }
@@ -163,7 +186,7 @@ final class Skipper {
 
         double secs = ((musicAt > 0 ? musicAt : SystemClock.elapsedRealtime()) - t0) / 1000.0;
         String s = String.format(Locale.US, "%.1f s", secs);
-        String tail = " (" + where + ")" + note + audioNote(audio)
+        String tail = " (" + where + ")" + note + audioNote(audio) + serviceNote
                 + (secs > 6 || r != Result.OK ? " · steps: " + steps : "");   // where a slow skip lost time
         if (r == Result.OK) {
             if (test) Events.add(c, Events.INFO, "Test restart OK: music back in " + s + tail);
@@ -193,11 +216,16 @@ final class Skipper {
     // connecting (it can take ~2 s); the next one the moment the session settles, then every 2 s.
     // PLAY is idempotent, so an extra press does no harm. Sets playingAt when music started.
     private static Result resume(Context c, Set<Object> old, long timeout, long t0) {
-        long start = SystemClock.elapsedRealtime(), nextKick = 0, playingSince = 0;
+        long start = SystemClock.elapsedRealtime(), nextKick = 0, playingSince = 0, goneSince = 0;
         int kicks = 0, lastState = -1;
+        boolean hadSession = false;
         while (SystemClock.elapsedRealtime() - start < timeout) {
             long now = SystemClock.elapsedRealtime();
             MediaController mc = latest(c, old);
+            // The new Spotify's session went away again (it crashed while starting): no use waiting.
+            if (mc != null) { hadSession = true; goneSince = 0; }
+            else if (hadSession && goneSince == 0) goneSince = now;
+            else if (hadSession && now - goneSince >= 1500) { step(t0, "session lost"); return Result.NO_SESSION; }
             PlaybackState ps = mc == null ? null : mc.getPlaybackState();
             int st = ps == null ? PlaybackState.STATE_NONE : ps.getState();
             boolean changed = st != lastState;
@@ -284,22 +312,56 @@ final class Skipper {
     // Android 15+ mutes an app that plays from the background without a foreground service, through
     // the CONTROL_AUDIO app-op. A restarted Spotify often has no such service yet, so Hush allows
     // the op for Spotify (BackgroundAudio). This watchdog only covers the rare case where the
-    // system mutes Spotify anyway: it re-applies the op and cycles pause/play.
+    // system mutes Spotify anyway: it re-applies the op and cycles pause/play. It also checks once
+    // that Spotify got its playback service (checkService).
+    // Returns CLOSED if Spotify crashed in the meantime (its session is gone, or replaced by a new
+    // one that Android Auto started at once, and Android recorded a crash or kill, not a stop):
+    // Spotify can crash by itself in its first seconds.
     private static String keepAudible(Context c, Set<Object> old, long t0) {
-        long start = SystemClock.elapsedRealtime();
-        int repairs = 0;
+        long start = SystemClock.elapsedRealtime(), end = start + 12000;
+        int repairs = 0, gone = 0;
+        boolean serviceChecked = false, ad = false;
         String audio = "";
-        while (SystemClock.elapsedRealtime() - start < 12000) {
+        MediaController first = latest(c, old);
+        Object session = first == null ? null : first.getSessionToken();
+        while (SystemClock.elapsedRealtime() < end) {
             MediaController mc = latest(c, old);
-            if (mc != null && AdWatcher.isAd(mc)) break;   // a new ad: let the watcher handle it
+            if (mc != null && AdWatcher.isAd(mc)) { ad = true; break; }   // a new ad: let the watcher handle it
+            gone = mc == null ? gone + 1 : 0;
+            boolean replaced = mc != null && session != null && !session.equals(mc.getSessionToken());
+            if (gone >= 2 || replaced) {   // crashed, or closed by the user (then it stays closed)
+                boolean crashed = crashed(Shell.run(Commands.SPOTIFY_EXIT));
+                if (crashed || gone >= 2) {
+                    log(t0, crashed ? "Spotify closed itself" : "Spotify was closed");
+                    if (serviceNote == null) serviceNote = "";
+                    if (crashed) return CLOSED;
+                    break;
+                }
+                session = mc.getSessionToken();   // a new session without a crash: watch that one
+            }
             audio = mutedState();
             if (audio.startsWith("mutedState:op") && repairs < 2) {
                 log(t0, "muted by the system, repairing: " + audio);
                 Shell.run(Commands.REPAIR_MUTE);
+                playAgain(c, old, t0);
                 repairs++;
             }
-            sleep(1000);
+            // Spotify usually starts its service as it starts playing; a restricted Spotify can keep
+            // it for a few seconds before Android takes it away. 6 s covers both.
+            long now = SystemClock.elapsedRealtime();
+            if (!serviceChecked && now - start >= 6000) {
+                serviceChecked = true;
+                serviceNote = checkService(c, old, t0);
+                if (serviceNote == null) end = start + 25000;   // waiting for a late request
+            } else if (serviceNote == null && hasService()) {
+                step(t0, "playback service");
+                serviceNote = "";
+                end = Math.max(start + 12000, now);   // back to the usual watch
+            }
+            if (waitForAd(c, old, 1000)) { ad = true; break; }
         }
+        // Cut short by a new ad, the service is still on its way: only a full wait says it is missing.
+        if (serviceNote == null) serviceNote = ad ? "" : " [no playback service]";
         if (BackgroundAudio.frozen()) {   // the unfreeze did not hold: try once more
             log(t0, "frozen by the system, unfreezing");
             Shell.run(Commands.UNFREEZE);
@@ -308,7 +370,70 @@ final class Skipper {
         return audio;
     }
 
+    // Spotify's playback service (a foreground service). Android lets a restarted Spotify start it
+    // from the background only while Spotify has an allowlist entry: Hush's fresh one (30 s,
+    // Commands.ALLOWLIST) or Android's own after a media key (10 s, and it replaces Hush's). Never
+    // while Spotify is restricted in the background. Without the service there is no notification
+    // or lock-screen control, and Android pauses, freezes or stops the background Spotify within
+    // minutes. A restriction is lifted (see SpotifyBackground) and Spotify asked again. A missing service is
+    // given a fresh entry without touching playback: Spotify started through its screen asks only
+    // ~20 s later. Returns a note for the activity log, or null while still waiting for the service.
+    private static String checkService(Context c, Set<Object> old, long t0) {
+        if (SpotifyBackground.refresh()) {   // the service is lost sooner or later: lift it now
+            log(t0, "Spotify is restricted in the background: allowing it");
+            if (!SpotifyBackground.allow(c)) return " [Spotify is restricted in the background]";
+            // The playing Spotify was refused its service while restricted: a fresh allowlist entry
+            // and a pause/play (a short gap) make it ask again, now allowed.
+            Shell.run(Commands.START_ALLOW);
+            Shell.run(Commands.REPAIR_MUTE);
+            playAgain(c, old, t0);
+            return null;   // wait for the service like a late request
+        }
+        if (hasService()) return "";
+        log(t0, "no playback service yet: renewing the allowlist");
+        Shell.run(Commands.START_ALLOW);
+        return null;
+    }
+
+    // After REPAIR_MUTE's pause/play: Spotify can miss the play (seen right after its battery
+    // restriction was lifted) and then stays paused. Checks for up to 3 s and presses play again.
+    private static void playAgain(Context c, Set<Object> old, long t0) {
+        for (int n = 1; n <= 6; n++) {
+            sleep(500);
+            MediaController mc = latest(c, old);
+            if (mc == null || AdWatcher.isAd(mc)) return;
+            PlaybackState ps = mc.getPlaybackState();
+            if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) return;
+            if (n % 2 == 0) {
+                step(t0, "play again");
+                kick(mc, n / 2 - 1);
+            }
+        }
+    }
+
+    // Sleeps up to ms, returning early (true) as soon as Spotify reports an ad: the watcher skips it
+    // once this skip has finished, so every moment here would be heard.
+    private static boolean waitForAd(Context c, Set<Object> old, long ms) {
+        for (long end = SystemClock.elapsedRealtime() + ms; SystemClock.elapsedRealtime() < end; ) {
+            sleep(250);
+            MediaController mc = latest(c, old);
+            if (mc != null && AdWatcher.isAd(mc)) return true;
+        }
+        return false;
+    }
+
+    // Unknown (no answer) counts as present: only a clear "none" means it is missing.
+    private static boolean hasService() { return !"0".equals(Shell.run(Commands.SPOTIFY_FGS).trim()); }
+
     private static String mutedState() { return Shell.run(Commands.MUTED_STATE); }
+
+    static final String CLOSED = "closed";
+
+    // From SPOTIFY_EXIT: Spotify's last exit was not a stop (by Hush, the user or the system's
+    // "remove task"), i.e. a crash or a kill. Unreadable counts as not crashed.
+    static boolean crashed(String exitLine) {
+        return exitLine != null && exitLine.contains("reason=") && !exitLine.contains("USER REQUESTED");
+    }
 
     private static String audioNote(String audio) {
         return audio.isEmpty() || audio.equals("mutedState:none") ? "" : " [" + audio + "]";

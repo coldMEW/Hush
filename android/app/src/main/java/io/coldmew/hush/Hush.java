@@ -71,6 +71,7 @@ final class Hush {
             p.mutedSpotify(true);
             SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.MUTE_SPOTIFY));
         } else {
+            unmuteGen++;   // a pending unmute check must not undo this mute
             c.getSystemService(AudioManager.class).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
             p.mutedByUs(true);
         }
@@ -83,8 +84,33 @@ final class Hush {
             SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_SPOTIFY));
         }
         if (!p.mutedByUs()) return;
-        c.getSystemService(AudioManager.class).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
-        p.mutedByUs(false);
+        AudioManager am = c.getSystemService(AudioManager.class);
+        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+        // Hush must never leave the phone's music muted (it happened once in testing): "muted by Hush"
+        // is cleared only once the music is really back on. If the unmute did not take, Hush tries
+        // again, then the system-level way (its helper presses the mute key, only if still muted).
+        // If none of that is possible right now, the mark stays and Hush tries again as soon as its
+        // helper connects, at the next skip, or when the next muted ad ends.
+        int gen = ++unmuteGen;
+        Context app = c.getApplicationContext();
+        AUDIO_CHECK.postDelayed(() -> finishUnmute(app, am, gen, 0), 400);
+    }
+
+    private static final android.os.Handler AUDIO_CHECK = new android.os.Handler(android.os.Looper.getMainLooper());
+    // A newer mute or unmute replaces a pending check.
+    private static volatile int unmuteGen;
+
+    private static void finishUnmute(Context c, AudioManager am, int gen, int step) {
+        if (gen != unmuteGen) return;
+        Prefs p = new Prefs(c);
+        if (!am.isStreamMute(AudioManager.STREAM_MUSIC)) { p.mutedByUs(false); return; }
+        if (step == 0) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+        else if (step == 1 && Shell.ready()) SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_MUSIC));
+        else {
+            Events.add(c, Events.FAIL, "Music volume still muted after an ad: Hush tries again as soon as it can");
+            return;   // mark kept: retried when the helper connects or at the next skip
+        }
+        AUDIO_CHECK.postDelayed(() -> finishUnmute(c, am, gen, step + 1), 600);
     }
 
     static boolean listenerEnabled(Context c) {
@@ -150,7 +176,7 @@ final class Hush {
         if (skipAlerted) return;
         skipAlerted = true;
         Prefs p = new Prefs(c);
-        if (HelperControl.supported() && p.paired()) {
+        if (HelperControl.supported() && (p.paired() || p.root())) {
             HelperControl.ensure(c, p.autoRestart() && HelperControl.canToggleDebugging(c), true);
             return;
         }

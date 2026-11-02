@@ -36,6 +36,8 @@ import java.util.concurrent.Executors;
 //  - After a reboot (Android turns Wireless debugging off): one "Tap to resume" notification, or,
 //    if the user opted in, an automatic restart followed by the per-phone test: Wireless debugging
 //    is switched off again and kept off only if the helper survives that on this phone.
+//  - On a rooted phone the user may choose root instead (Root): the helper is then started with su,
+//    with no Wi-Fi or Wireless debugging involved; the same restart limits and notices apply.
 // Hush only ever changes the Wireless debugging setting (never USB debugging or Developer options),
 // and only with WRITE_SECURE_SETTINGS (granted once by the helper) on Android 13+.
 final class HelperControl {
@@ -51,7 +53,7 @@ final class HelperControl {
     private static final ArrayDeque<Long> restarts = new ArrayDeque<>();
     private static volatile Result last;
     private static volatile String lastError = "", lastLogged = "";
-    private static volatile boolean pending, phoneTestRunning, booting, turnedOn;
+    private static volatile boolean pending, phoneTestRunning, booting, turnedOn, switching;
     private static boolean initialized;
     private static ConnectivityManager.NetworkCallback wifiWait;
 
@@ -92,7 +94,7 @@ final class HelperControl {
     // Skipping should run through Hush's helper.
     static boolean wanted(Context c) {
         Prefs p = new Prefs(c);
-        return supported() && p.enabled() && Prefs.MODE_RESTART.equals(p.mode()) && p.paired();
+        return supported() && p.enabled() && Prefs.MODE_RESTART.equals(p.mode()) && (p.paired() || p.root());
     }
 
     static Result lastResult() { return last; }
@@ -165,6 +167,11 @@ final class HelperControl {
     private static Result startLocked(Context c, boolean mayEnable) {
         if (HushHelper.ready()) return Result.READY;
         if (!supported()) return Result.UNSUPPORTED;
+        if (new Prefs(c).root()) {   // needs neither Wi-Fi nor Wireless debugging
+            String why = Root.startHelper(c);
+            lastError = why == null ? "" : why;
+            return why == null ? Result.READY : Result.FAILED;
+        }
         if (!onWifi(c)) { lastError = "no Wi-Fi"; return Result.NO_WIFI; }
         boolean wasOn = debuggingOn(c);
         if (!wasOn && !(mayEnable && setDebugging(c, true))) { lastError = "Wireless debugging is off"; return Result.DEBUGGING_OFF; }
@@ -198,6 +205,36 @@ final class HelperControl {
         new Prefs(c).paired(true);
         lastError = "";
         return Result.READY;
+    }
+
+    // "Use root" on the setup screen: start the helper with root, replacing one started over Wireless
+    // debugging. Hush keeps using root only if that worked; otherwise skipping goes on as before.
+    static void useRootAsync(Context ctx, java.util.function.Consumer<Boolean> done) {
+        Context c = ctx.getApplicationContext();
+        worker.execute(() -> {
+            String why;
+            switching = true;
+            try {
+                if (HushHelper.ready()) {
+                    HushHelper.stop();
+                    for (int i = 0; i < 40 && HushHelper.ready(); i++) SystemClock.sleep(50);
+                }
+                why = Root.startHelper(c);
+            } finally {
+                switching = false;
+            }
+            last = why == null ? Result.READY : Result.FAILED;
+            lastError = why == null ? "" : why;
+            if (why == null) {
+                new Prefs(c).root(true);
+                cancelNotice(c);
+                Events.add(c, Events.INFO, "Skipping now starts with root: no Wireless debugging needed");
+            } else {
+                Events.add(c, Events.INFO, "Skipping helper didn't start with root: " + why);
+                if (!HushHelper.ready() && wanted(c)) start(c, true);   // back to Wireless debugging
+            }
+            main.post(() -> done.accept(why == null));
+        });
     }
 
     // Starts the helper in the background unless a start is already queued.
@@ -235,6 +272,13 @@ final class HelperControl {
             // Spotify left muted (e.g. Hush was stopped mid-ad in the car, or the phone restarted):
             // undo it now that Hush can, unless an ad is playing right now.
             if (!AdWatcher.inBreak()) Hush.unmuteIfNeeded(c);
+            Prefs p = new Prefs(c);
+            if (p.checkCopies() && p.copiesChecked() != BuildConfig.VERSION_CODE) {
+                p.copiesChecked(BuildConfig.VERSION_CODE);
+                UpdateCopies.removeIfAny(c);
+            }
+            p.checkCopies(false);
+            SpotifyBackground.ensureAllowed(c);   // before the first skip, not after it
         });
     }
 
@@ -251,7 +295,7 @@ final class HelperControl {
     // Returns true if USB debugging is on (it was, or Hush turned it on), i.e. the helper survives
     // Wireless debugging going off.
     static boolean keepRunningOffWifi(Context c) {
-        if (!Shell.ready()) return false;
+        if (!Shell.ready() || new Prefs(c).root()) return false;   // a helper started with root needs no debugging
         String state = Shell.run(Commands.USB_DEBUGGING_STATE).trim();
         if (!"0".equals(state)) return "1".equals(state);
         Prefs p = new Prefs(c);
@@ -263,13 +307,13 @@ final class HelperControl {
     }
 
     private static void onDied(Context c) {
-        if (!wanted(c) || phoneTestRunning) return;
+        if (!wanted(c) || phoneTestRunning || switching) return;
         long now = SystemClock.elapsedRealtime();
         Prefs p = new Prefs(c);
         synchronized (restarts) {
             while (!restarts.isEmpty() && now - restarts.peekFirst() > WINDOW) restarts.pollFirst();
             if (restarts.size() >= MAX_RESTARTS) {
-                if (Prefs.TEST_SAFE.equals(p.phoneTest()) && !debuggingOn(c)) {
+                if (Prefs.TEST_SAFE.equals(p.phoneTest()) && !debuggingOn(c) && !p.root()) {
                     // The phone passed the test once but now keeps stopping the helper while
                     // Wireless debugging is off (e.g. after a system update): leave it on from now on.
                     p.phoneTest(Prefs.TEST_NEEDS_ON);
@@ -283,7 +327,7 @@ final class HelperControl {
             }
             restarts.addLast(now);
         }
-        boolean auto = p.autoRestart() && canToggleDebugging(c);
+        boolean auto = p.autoRestart() && canToggleDebugging(c) && !p.root();
         worker.execute(() -> {
             SystemClock.sleep(1000);
             Result r = start(c, auto);
@@ -301,8 +345,21 @@ final class HelperControl {
     // helper ready (or a start already running) and does nothing.
     static void onBoot(Context ctx) {
         Context c = ctx.getApplicationContext();
+        Prefs up = new Prefs(c);
+        if (up.updating() && up.copiesChecked() != BuildConfig.VERSION_CODE) up.checkCopies(true);   // see UpdateCopies
         if (!wanted(c) || HushHelper.ready() || booting) return;
         Prefs p = new Prefs(c);
+        if (p.root()) {   // root: start at once, there is nothing to wait for
+            p.updating(false);
+            booting = true;
+            worker.execute(() -> {
+                try {
+                    Result r = start(c, false);
+                    if (r != Result.READY) notifyStopped(c, r);
+                } finally { booting = false; }
+            });
+            return;
+        }
         if (p.updating() && canToggleDebugging(c) && onWifi(c)) {
             // Hush just updated itself (the user tapped Update): bring skipping back the same way as
             // the automatic restart, and leave Wireless debugging as it was before.
@@ -432,7 +489,7 @@ final class HelperControl {
                 tapResumes = canToggleDebugging(c);
                 text = tapResumes ? R.string.helper_notice_resume : R.string.helper_notice_debugging;
                 break;
-            default: text = R.string.helper_notice_fix; break;
+            default: text = new Prefs(c).root() ? R.string.helper_notice_root : R.string.helper_notice_fix; break;
         }
         PendingIntent tap = tapResumes
                 ? PendingIntent.getBroadcast(c, 4, new Intent(c, Hush.Receiver.class).setAction(Hush.ACTION_RESUME), PendingIntent.FLAG_IMMUTABLE)
@@ -470,12 +527,14 @@ final class HelperControl {
     static String diagnostics(Context c) {
         Prefs p = new Prefs(c);
         int[] ping = HushHelper.ping();
-        return "backend: " + (HushHelper.ready() ? "hush-helper v" + (ping == null ? "?" : ping[0])
+        return "backend: " + (HushHelper.ready() ? "hush-helper v" + (ping == null ? "?" : ping[0]) + (p.root() ? " (root)" : "")
                         : Shell.shizukuReady() ? "shizuku" : "none")
+                + "\nroot: " + (p.root() ? "used" : Root.available(c) ? "available, not used" : "no")
                 + "\npaired: " + p.paired()
                 + "\nauto restart: " + p.autoRestart() + " (can switch debugging: " + canToggleDebugging(c) + ")"
                 + "\nper-phone test: " + (p.phoneTest().isEmpty() ? "not run" : p.phoneTest())
                 + "\nwireless debugging: " + (debuggingOn(c) ? "on" : "off")
+                + "\nspotify in background: " + (SpotifyBackground.restricted() ? "restricted" : "allowed or unknown")
                 + "\nlast start: " + last + (lastError.isEmpty() ? "" : " (" + lastError + ")");
     }
 }

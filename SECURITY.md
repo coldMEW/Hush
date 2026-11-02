@@ -26,13 +26,21 @@ VPN. It is built so that neither can be turned against the phone.
 - It has no "run a command" call. It knows a fixed list of actions (stop Spotify, start or reopen
   it, allow its background audio, press play, open a Spotify link, read which app is in front and
   whether Spotify is muted or frozen, mute or unmute Spotify's playback, read whether Android Auto
-  is using Spotify, grant Hush `WRITE_SECURE_SETTINGS`) and builds every command
-  itself from an action number and validated arguments.
+  is using Spotify, read whether Spotify runs its playback service, whether it may run in the
+  background and why it last closed, allow it to run in the background, turn the music volume back on, grant Hush `WRITE_SECURE_SETTINGS`, and remove a copy
+  of Hush that an older update put into another Android user) and builds every command itself
+  from an action number and validated arguments. The user-related actions only ever name Hush's
+  own package, and removing a copy is refused for the user Hush runs in.
 - `WRITE_SECURE_SETTINGS` is granted only to Hush, and Hush uses it only to switch Wireless
   debugging (`adb_wifi_enabled`): on, when its helper has to be started again (after a reboot,
   when Wi-Fi is back, or when you tap "Skipping paused"), and, if you turned on automatic restart
   and the phone passed the test, off again right after. It never changes USB debugging or
   Developer options.
+- Rooted phones can start the helper with root instead of Wireless debugging (setup screen, "Use
+  root"). Root is used for that one start only: Hush asks the root app to run the start command as
+  the shell user (`su 2000`), and the helper gives up root itself if it was started as root
+  anyway, before it does anything else. It then has exactly the rights and actions described
+  here; no other command goes through su.
 - The helper exits when Hush is uninstalled. You can revoke Hush's pairing at any time under
   Wireless debugging → Paired devices.
 - Limitation: Android's adb daemon writes the command that starts the helper, token included, to
@@ -44,8 +52,11 @@ VPN. It is built so that neither can be turned against the phone.
   or the home screen, press play or pause, open a Spotify playlist or album link, allow Spotify's
   background-audio app-ops (reset to default when Hush is turned off, once Spotify is not
   playing), mute and unmute Spotify's
-  playback (the `PLAY_AUDIO` app-op, only during an ad while Android Auto is connected), and read
-  media, audio, task and content-provider state.
+  playback (the `PLAY_AUDIO` app-op, only during an ad while Android Auto is connected), give the
+  restarted Spotify a 30-second battery allowlist entry so it can start its playback service,
+  allow Spotify to run in the background (`RUN_ANY_IN_BACKGROUND`, only when Hush finds it
+  restricted), turn the music volume back on after a muted ad (only if it is still muted), and read
+  media, audio, task, service and content-provider state, and why Spotify last closed.
 - Every value inserted into a command (package and component names, Spotify URIs) is checked
   against a strict allow-list pattern and single-quoted. Anything else is rejected; unit tests
   cover injection attempts.
@@ -71,7 +82,8 @@ VPN. It is built so that neither can be turned against the phone.
   if there is a newer Hush (nothing about the user or the phone is sent).
 - Updates are installed only if the APK matches the SHA-256 GitHub publishes for it, is Hush, is
   newer than the installed version and is signed with the same key. Through Hush's helper this
-  runs `pm install -r` with the verified file; the helper accepts it only from Hush.
+  runs `pm install -r` with the verified file, for Hush's own Android user only; the helper
+  accepts it only from Hush.
 
 **Build**
 - Release APKs are minified and signed with APK Signature Scheme v2 and v3. The signing key is not

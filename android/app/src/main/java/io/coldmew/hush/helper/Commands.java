@@ -14,15 +14,19 @@ public final class Commands {
 
     // Action ids. arg: Spotify's launch component for STOP_READ_FRONT, OPEN_AND_ALLOW, RESTART; a
     // launcher component for OPEN_APP; a playlist/album URI for OPEN_URI; Hush's package name for
-    // GRANT_SECURE_SETTINGS. The others take none.
+    // GRANT_SECURE_SETTINGS and HUSH_USERS; "<user id>/<Hush's package>" for REMOVE_HUSH_COPY. The
+    // others take none.
     public static final int STOP_READ_FRONT = 1, ALLOW_AUDIO = 2, OPEN_AND_ALLOW = 3, RESTART = 4,
             MEDIA_PLAY = 5, KEY_PLAY = 6, OPEN_URI = 7, REPAIR_MUTE = 8, UNFREEZE = 9, IS_FROZEN = 10,
             MUTED_STATE = 11, FRONT = 12, HOME = 13, OPEN_APP = 14, RESET_AUDIO = 15,
             ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17, USB_DEBUGGING_STATE = 18, USB_DEBUGGING_ON = 19,
-            SPOTIFY_HOLDERS = 20, MUTE_SPOTIFY = 21, UNMUTE_SPOTIFY = 22, RESUMED_APP = 23;
+            SPOTIFY_HOLDERS = 20, MUTE_SPOTIFY = 21, UNMUTE_SPOTIFY = 22, RESUMED_APP = 23,
+            START_ALLOW = 24, SPOTIFY_FGS = 25, SPOTIFY_BG_STATE = 26, SPOTIFY_BG_ALLOW = 27,
+            HUSH_USERS = 28, REMOVE_HUSH_COPY = 29, UNMUTE_MUSIC = 30, SPOTIFY_EXIT = 31;
 
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9_.$/]{1,255}");
     private static final Pattern PLAYABLE = Pattern.compile("spotify:(playlist|album):[A-Za-z0-9]{1,64}");
+    private static final Pattern USER = Pattern.compile("[0-9]{1,5}");
 
     // Android 15+ mutes media apps that play from the background without a foreground service
     // (CONTROL_AUDIO app-ops); see BackgroundAudio.
@@ -31,8 +35,12 @@ public final class Commands {
     static final String RESET = appops("default");
     private static final String STOP = "am force-stop " + arg(SPOTIFY);
     // The temporary allowlist lets the new Spotify start its playback service from the background;
-    // without it Spotify plays with no notification or lock-screen controls.
-    static final String ALLOWLIST = "cmd deviceidle tempwhitelist -d 30000 " + arg(SPOTIFY) + " >/dev/null 2>&1";
+    // without it Spotify plays with no notification or lock-screen controls, as a cached app that
+    // Android may freeze or kill. Android grants that right only when the entry is new: a force-stop
+    // takes the right away but leaves the entry (e.g. one Android added for a headset button press),
+    // and adding to an existing entry only extends it. So the entry is removed and added again.
+    static final String ALLOWLIST = "cmd deviceidle tempwhitelist -r " + arg(SPOTIFY) + " >/dev/null 2>&1; "
+            + "cmd deviceidle tempwhitelist -d 30000 " + arg(SPOTIFY) + " >/dev/null 2>&1";
     private static final String UNFREEZE_CMD = "am unfreeze --sticky " + arg(SPOTIFY) + " >/dev/null 2>&1";
     // The most recent task's entry in the recents list: the app on screen (or behind the lock screen).
     static final String RECENT_TOP = "dumpsys activity recents | sed -n '/Recent #0/,/Recent #1/p' | head -40";
@@ -48,7 +56,10 @@ public final class Commands {
                 return "R=$(" + RECENT_TOP + "); echo \"$R\"; " + STOP + "; case \"$R\" in *=" + SPOTIFY
                         + "/*) " + open(a) + "; echo " + OPENED + ";; esac; " + ALLOWLIST;
             case ALLOW_AUDIO: return ALLOW;
-            case OPEN_AND_ALLOW: return open(a) + "; " + ALLOW;
+            // Right before the stopped Spotify is started again: a fresh allowlist entry (see
+            // ALLOWLIST; the one set with the stop can be gone again by now) and the audio app-ops.
+            case START_ALLOW: return ALLOWLIST + "; " + ALLOW;
+            case OPEN_AND_ALLOW: return ALLOWLIST + "; " + open(a) + "; " + ALLOW;
             case RESTART: return STOP + "; " + ALLOWLIST + "; " + open(a) + "; " + ALLOW;
             case MEDIA_PLAY: return "cmd media_session dispatch play";
             case KEY_PLAY: return "input keyevent 126";
@@ -86,6 +97,30 @@ public final class Commands {
             case UNMUTE_SPOTIFY: return "appops set " + arg(SPOTIFY) + " PLAY_AUDIO allow";
             // The activity on screen, for phones whose recents list Hush cannot read (see Skipper).
             case RESUMED_APP: return "dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity'";
+            // Read-only: how many of Spotify's services run in the foreground (its playback service
+            // does while it plays normally). 0 after a restart means Android refused it.
+            case SPOTIFY_FGS: return "dumpsys activity services " + arg(SPOTIFY) + " | grep -c 'isForeground=true'";
+            // Spotify's "background usage" (Battery > Restricted sets it to ignore): anything but
+            // allow keeps a restarted Spotify from its playback service. See SpotifyBackground.
+            case SPOTIFY_BG_STATE: return "appops get " + arg(SPOTIFY) + " RUN_ANY_IN_BACKGROUND";
+            case SPOTIFY_BG_ALLOW: return "appops set " + arg(SPOTIFY) + " RUN_ANY_IN_BACKGROUND allow";
+            // Read-only: why Spotify's main process last ended ("reason=5 (APP CRASH(NATIVE))", ...).
+            case SPOTIFY_EXIT:
+                return "dumpsys activity exit-info " + arg(SPOTIFY) + " | grep -m1 'process=" + SPOTIFY + " '";
+            // Read-only: the Android users Hush is installed for, with when it arrived there, and
+            // when it was last updated (see UpdateCopies).
+            case HUSH_USERS:
+                return "dumpsys package " + arg(a) + " | grep -E '^ *(User [0-9]+: |firstInstallTime=|lastUpdateTime=)'";
+            // Turns the music volume back on the way the volume keys do (system-level), only if it is
+            // muted: the mute key toggles, so it must never be pressed on an unmuted stream.
+            case UNMUTE_MUSIC:
+                return "dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164";
+            // Removes Hush from one other Android user only (an app-clone space it was copied into).
+            case REMOVE_HUSH_COPY: {
+                String[] p = a == null ? new String[0] : a.split("/", 2);
+                if (p.length != 2 || !USER.matcher(p[0]).matches()) throw new IllegalArgumentException("bad user");
+                return "pm uninstall --user " + p[0] + " " + arg(p[1]) + " 2>&1";
+            }
             default: throw new IllegalArgumentException("unknown action " + action);
         }
     }

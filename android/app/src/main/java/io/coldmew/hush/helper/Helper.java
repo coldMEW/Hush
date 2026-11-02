@@ -24,6 +24,9 @@ public final class Helper {
     private Helper() {}
 
     public static void main(String[] args) {
+        // Started through a root manager (see Root in the app): it is asked to start the helper as
+        // the shell user, but should one start it as root, the helper gives root up first.
+        if (Process.myUid() == 0) dropToShell();
         for (String a : args) {
             if (a.startsWith("--token=")) token = a.substring(8);
             else if (a.startsWith("--uid=")) hushUid = Integer.parseInt(a.substring(6));
@@ -111,6 +114,17 @@ public final class Helper {
     };
 
     static int sdk() { return Build.VERSION.SDK_INT; }
+
+    // Root to the shell user (group first: without root it could not be changed any more). On
+    // failure the helper stops at the uid check below rather than run as root.
+    private static void dropToShell() {
+        try {
+            android.system.Os.setgid(HelperProtocol.SHELL_UID);   // as root: real, effective and saved
+            android.system.Os.setuid(HelperProtocol.SHELL_UID);
+        } catch (Throwable t) {
+            System.err.println("hush_helper: could not leave root: " + t);
+        }
+    }
 
     // Android user that Hush runs in (uid = user * 100000 + app id).
     static int userId() { return hushUid / 100000; }

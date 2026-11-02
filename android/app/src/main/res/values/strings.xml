@@ -75,6 +75,9 @@
     <string name="setup_shizuku_permission">Running. Allow Hush to use it.</string>
     <string name="setup_notifications">Notifications</string>
     <string name="setup_notifications_desc">Shows the status and a Turn off button.</string>
+    <string name="setup_spotify_bg">Spotify in the background</string>
+    <string name="setup_spotify_bg_desc">Spotify isn\'t allowed to run in the background (its battery setting), and Hush couldn\'t change that by itself. After a skip Spotify then plays without its notification and stops after a few minutes. Tap Fix.</string>
+    <string name="action_fix">Fix</string>
     <string name="setup_battery">Unrestricted battery</string>
     <string name="setup_battery_desc">Keeps Hush working while the phone is locked.</string>
     <string name="action_allow">Allow</string>
@@ -226,6 +229,14 @@
     <string name="hs_ready_action">Start</string>
     <string name="hs_note">Pairing gives Hush\'s helper only the few actions it needs (restart Spotify, keep it audible, bring back your app). You can remove Hush under Paired devices in Wireless debugging at any time.</string>
     <string name="hs_use_shizuku">Use Shizuku instead</string>
+    <string name="hs_root">Rooted phone?</string>
+    <string name="hs_root_desc">Hush can start its helper with root instead: no pairing, no Wi-Fi, and nothing to redo after a restart. Your root app asks once.</string>
+    <string name="hs_root_action">Use root</string>
+    <string name="hs_root_working">Waiting for your root app…</string>
+    <string name="hs_root_failed">Root access didn\'t work (denied, or no root on this phone). Use the steps below instead.</string>
+    <string name="hs_root_done">Skipping starts with root.</string>
+    <string name="setup_skip_root">Paused: the helper isn\'t running. Tap Resume to start it with root.</string>
+    <string name="helper_notice_root">Hush couldn\'t start its helper with root. Tap to try again. Until then, ads are muted.</string>
 
     <string name="pair_searching_title">Pairing Hush</string>
     <string name="pair_searching_text">In Wireless debugging, tap Pair device with pairing code.</string>

@@ -227,17 +227,19 @@ public class AdWatcher extends NotificationListenerService {
         // ad and playing on (Spotify can report the ad before its ID, so onTrack may not have fired).
         if (SleepTimer.adAtEndOfSong(this)) return;
 
-        if (!inBreak) {
-            inBreak = true;
+        boolean newBreak = !inBreak;
+        inBreak = true;
+        boolean recentFail = System.currentTimeMillis() - Skipper.lastFailAt < 120_000;
+        boolean skipMode = Prefs.MODE_RESTART.equals(mode);
+        // A break already muted (a skip could not run) stays muted until it is over. The skip starts
+        // before anything is written: every millisecond before Spotify stops is heard as the ad.
+        boolean skip = skipMode && Shell.ready() && !recentFail && !muting;
+        if (skip) Skipper.start(this, false);
+        if (newBreak) {
             p.add(Prefs.SEEN, 1);
             Events.add(this, Events.AD, "Ad break started: " + describe(m));
         }
-        boolean recentFail = System.currentTimeMillis() - Skipper.lastFailAt < 120_000;
-        boolean skipMode = Prefs.MODE_RESTART.equals(mode);
-        // A break already muted (a skip could not run) stays muted until it is over.
-        if (skipMode && Shell.ready() && !recentFail && !muting) {
-            Skipper.start(this, false);
-        } else if (!muting) {
+        if (!skip && !muting) {
             muting = true;
             Hush.muteAd(this);
             p.add(Prefs.MUTED, 1);

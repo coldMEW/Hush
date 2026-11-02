@@ -22,6 +22,13 @@
     <queries>
         <package android:name="com.spotify.music" />
         <package android:name="moe.shizuku.privileged.api" />
+        <!-- Root managers (see Root): only to offer "Use root" on rooted phones. -->
+        <package android:name="com.topjohnwu.magisk" />
+        <package android:name="io.github.vvb2060.magisk" />
+        <package android:name="io.github.huskydg.magisk" />
+        <package android:name="me.weishu.kernelsu" />
+        <package android:name="com.rifsxd.ksunext" />
+        <package android:name="me.bmax.apatch" />
         <!-- to return the user to the app (or home screen) they were in after a restart-skip -->
         <intent>
             <action android:name="android.intent.action.MAIN" />

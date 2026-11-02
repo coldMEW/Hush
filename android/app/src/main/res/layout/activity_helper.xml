@@ -60,6 +60,17 @@
             android:paddingBottom="12dp"
             android:textColor="@color/accent_text" />
 
+        <!-- Rooted phones: one tap instead of the steps below (shown only when root may be there). -->
+        <LinearLayout
+            android:id="@+id/root_card"
+            style="@style/Card"
+            android:layout_marginBottom="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <include android:id="@+id/step_root" layout="@layout/row_setup" />
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/steps"
             style="@style/Card"

@@ -6,7 +6,7 @@ import android.os.IBinder;
 // helper and starts a fresh one.
 public final class HelperProtocol {
     public static final String DESCRIPTOR = "io.coldmew.hush.IHelper";
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int SHELL_UID = 2000;
 
     public static final String AUTHORITY_SUFFIX = ".helper";
@@ -31,7 +31,8 @@ public final class HelperProtocol {
     // window in the same state, not a new start of the app. Version 4.
     public static final int TO_FRONT = IBinder.FIRST_CALL_TRANSACTION + 6;
     // Installs an update of Hush: an open APK file (checked by Hush before: same package, newer
-    // version, same signing key) is streamed into `pm install -r`, which keeps Hush's data. Version 4.
+    // version, same signing key) is streamed into `pm install -r`, which keeps Hush's data. Version 4;
+    // version 5 installs for Hush's own Android user only.
     public static final int INSTALL = IBinder.FIRST_CALL_TRANSACTION + 7;
 
     private HelperProtocol() {}

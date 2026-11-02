@@ -162,6 +162,35 @@ the new Spotify process right after each restart (and on the running one when Hu
 The exemption lasts for that process only, so it ends with the next restart, and nothing else on
 the phone is affected. The command exists on Android 14 and later; older versions ignore it.
 
+### The playback service (2.0.5)
+
+Spotify's playback service is what gives it the notification and lock-screen controls and keeps it
+a foreground process. Started from the background, Android allows it only while Spotify has a
+temporary allowlist entry, and three details matter (measured on Android 17 with Spotify 9.1.94):
+
+- A force-stop takes away the right to start the service but leaves the allowlist entry itself.
+  Adding to an existing entry only extends it and does not give the right back. Android adds such
+  an entry by itself whenever a media key reaches Spotify (a headset button, the notification, or
+  Hush's own play key), so before 2.0.5 Hush's entry often did not count: Spotify played with no
+  notification as a cached app, and Android later paused, froze or stopped it ("excessive CPU" in
+  `dumpsys activity exit-info`). Hush now removes the entry and adds it again (`tempwhitelist -r`,
+  then `-d 30000`), right after the stop and right before Spotify is started.
+- Each media key replaces the entry with Android's own 10-second one. Spotify started through its
+  screen asks for its service only about 20 seconds later, so Hush renews the entry once the music
+  is back, checks after 6 seconds that the service runs (`dumpsys activity services`), and renews it
+  again if not. It never pauses and resumes the music for this.
+- None of this helps while Spotify's background usage is restricted (Battery → Restricted sets the
+  `RUN_ANY_IN_BACKGROUND` app-op to `ignore`; Android treats anything but `allow` as restricted).
+  Hush reads that setting when its helper connects and at every skip, sets it to `allow` by itself
+  (noted in Recent activity), and gets the playing Spotify to ask for its service again (a short
+  pause/play). A **Fix** button on the main screen remains only for when that is not possible.
+
+Spotify can also crash by itself in its first seconds after a restart (seen once as a native
+`bad_weak_ptr` abort, 5 seconds after a skip). While Hush waits for the music and watches it
+afterwards, a Spotify session that disappears is checked against `dumpsys activity exit-info`: a
+crash or a kill makes Hush start Spotify once more, the same way; a stop (by you, or a swipe from
+recent apps) is left alone.
+
 ## 6. Hush's helper
 
 Since 2.0 Hush does what Shizuku did for it by itself, with much less: it needs only a handful of
@@ -205,8 +234,18 @@ Recent activity says so.
 nothing about the user or the phone is sent. A newer version is announced once, with the first line
 of its release notes. **Update Hush** downloads the APK and installs it only if it matches the
 SHA-256 GitHub publishes, is Hush, is newer and is signed with the same key. With the helper it is
-streamed into `pm install -r` (no prompt; settings and pairing are kept), and the new version starts
-its helper by itself; without the helper Android's installer asks once.
+streamed into `pm install -r --user <your user>` (no prompt; settings and pairing are kept), and
+the new version starts its helper by itself; without the helper Android's installer asks once.
+Before 2.0.5 the `--user` was missing, and the shell installs for every user by default: on phones
+with an app-clone space (Samsung's Dual Messenger) that added a "Hush Clone". After an update Hush
+now looks once for a copy that arrived in another user within a minute of the update and removes
+it; a clone made earlier on purpose is left alone.
+
+**Root.** On a rooted phone the setup screen offers **Use root**. Hush then starts the same helper
+with `su 2000 -c <start command>`, so it runs as the shell user exactly as over Wireless debugging
+(should a root app start it as root anyway, the helper switches to the shell user before anything
+else). There is no pairing and no Wi-Fi or USB debugging involved, and after a reboot or an update
+Hush starts it again by itself. Root is used for that one start only.
 
 **Mobile data.** The helper runs in the process group of Android's debugging service (adbd), and
 the shell user cannot move it out. Android switches Wireless debugging off when Wi-Fi drops; if USB

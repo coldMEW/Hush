@@ -186,6 +186,9 @@ public class MainActivity extends Activity {
         HushHelper.addListener(helperChanged);
         ui.post(ticker);
         if (prefs.enabled()) Hush.applyDns(this);   // e.g. VPN was taken over by another app meanwhile
+        // Spotify's background setting may have been changed in Settings meanwhile: allow it again
+        // (off the main thread).
+        if (Shell.ready()) new Thread(() -> { SpotifyBackground.ensureAllowed(this); ui.post(this::refresh); }, "hush-spotify-bg").start();
     }
 
     @Override protected void onPause() {
@@ -305,7 +308,7 @@ public class MainActivity extends Activity {
         prefs.mode(m);
         // The helper is kept running only for Skip; switching to it starts the helper now, so the
         // next ad is skipped rather than muted while it starts.
-        if (prefs.enabled() && Prefs.MODE_RESTART.equals(m) && prefs.paired() && HelperControl.supported() && !Shell.ready())
+        if (prefs.enabled() && Prefs.MODE_RESTART.equals(m) && (prefs.paired() || prefs.root()) && HelperControl.supported() && !Shell.ready())
             HelperControl.ensure(this, true, true);
         else if (Prefs.MODE_RESTART.equals(m)) HelperControl.keepRunningOffWifiAsync(this);
         AdWatcher.recheck();
@@ -327,7 +330,7 @@ public class MainActivity extends Activity {
     private void afterTurnOn() {
         if (!Prefs.MODE_RESTART.equals(prefs.mode()) || Shell.ready()) return;
         if (Shell.running() && !prefs.paired()) Shell.requestPermission();
-        else if (prefs.paired() && HelperControl.supported()) HelperControl.ensure(this, true, true);
+        else if ((prefs.paired() || prefs.root()) && HelperControl.supported()) HelperControl.ensure(this, true, true);
         else openSkipSetup();
     }
 
@@ -530,8 +533,21 @@ public class MainActivity extends Activity {
         if (Prefs.MODE_RESTART.equals(prefs.mode()) && !shizuku) renderSkipSetup();
         // Skipping through Shizuku (e.g. after updating from 1.0.x): offer the switch to Hush's own
         // helper, which needs no restart of Shizuku after every reboot. Gone once Hush is paired.
-        else if (Prefs.MODE_RESTART.equals(prefs.mode()) && HelperControl.supported() && !prefs.paired())
+        else if (Prefs.MODE_RESTART.equals(prefs.mode()) && HelperControl.supported() && !prefs.paired() && !prefs.root())
             setupRow(R.string.setup_no_shizuku, R.string.setup_no_shizuku_desc, R.string.action_set_up, v -> openSkipSetup());
+        // Spotify may not run in the background (Battery > Restricted, or a maker's battery saver):
+        // after a skip it would play without its notification and stop a few minutes later.
+        if (Prefs.MODE_RESTART.equals(prefs.mode()) && shizuku && SpotifyBackground.restricted())
+            setupRow(R.string.setup_spotify_bg, R.string.setup_spotify_bg_desc, R.string.action_fix, v -> {
+                v.setEnabled(false);
+                new Thread(() -> {
+                    boolean ok = SpotifyBackground.allow(this);
+                    ui.post(() -> {
+                        if (!ok) open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + Hush.SPOTIFY)));
+                        refresh();
+                    });
+                }, "hush-spotify-bg").start();
+            });
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             setupRow(R.string.setup_notifications, R.string.setup_notifications_desc, R.string.action_allow,
                     v -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF));
@@ -545,6 +561,13 @@ public class MainActivity extends Activity {
     // Hush resumes with one tap (or by itself once Wireless debugging is on); everyone else gets the
     // one-time setup. Android 8-10 have no Wireless debugging: Shizuku only.
     private void renderSkipSetup() {
+        if (prefs.root() && HelperControl.supported()) {   // started with root: no Wi-Fi or debugging involved
+            setupRow(R.string.setup_skip, R.string.setup_skip_root, R.string.action_resume, v -> {
+                v.setEnabled(false);
+                HelperControl.ensure(this, false, true);
+            });
+            return;
+        }
         boolean shizukuUser = Shell.installed(this) && !prefs.paired();
         if (!HelperControl.supported() || shizukuUser && Shell.running()) {
             int desc = !Shell.installed(this) ? R.string.setup_shizuku_missing
@@ -575,7 +598,7 @@ public class MainActivity extends Activity {
 
     // "Restart automatically after a reboot": shown once Hush is paired; describes the per-phone result.
     private void renderAutoRestart() {
-        boolean show = HelperControl.supported() && prefs.paired();
+        boolean show = HelperControl.supported() && prefs.paired() && !prefs.root();   // root needs no debugging
         int vis = show ? View.VISIBLE : View.GONE;
         optAuto.setVisibility(vis);
         findViewById(R.id.opt_auto_divider).setVisibility(vis);

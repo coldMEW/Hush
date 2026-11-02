@@ -15,7 +15,9 @@ public class CommandsTest {
             + "cmd appops set 'com.spotify.music' CONTROL_AUDIO_PARTIAL allow 2>/dev/null; "
             + "cmd appops set 'com.spotify.music' TAKE_AUDIO_FOCUS allow 2>/dev/null";
     private static final String OPEN = "am start -n 'com.spotify.music/.MainActivity' >/dev/null 2>&1";
-    private static final String ALLOWLIST = "cmd deviceidle tempwhitelist -d 30000 'com.spotify.music' >/dev/null 2>&1";
+    // Removed and added again: Android grants the playback-service right only for a new entry.
+    private static final String ALLOWLIST = "cmd deviceidle tempwhitelist -r 'com.spotify.music' >/dev/null 2>&1; "
+            + "cmd deviceidle tempwhitelist -d 30000 'com.spotify.music' >/dev/null 2>&1";
     private static final String STOP = "am force-stop 'com.spotify.music'";
 
     @Test public void quotesSafeNames() {
@@ -41,7 +43,8 @@ public class CommandsTest {
                 + STOP + "; case \"$R\" in *=com.spotify.music/*) " + OPEN + "; echo @@hush-opened-spotify;; esac; " + ALLOWLIST,
                 Commands.build(Commands.STOP_READ_FRONT, SPOTIFY_MAIN));
         assertEquals(ALLOW, Commands.build(Commands.ALLOW_AUDIO, null));
-        assertEquals(OPEN + "; " + ALLOW, Commands.build(Commands.OPEN_AND_ALLOW, SPOTIFY_MAIN));
+        assertEquals(ALLOWLIST + "; " + OPEN + "; " + ALLOW, Commands.build(Commands.OPEN_AND_ALLOW, SPOTIFY_MAIN));
+        assertEquals(ALLOWLIST + "; " + ALLOW, Commands.build(Commands.START_ALLOW, "x; reboot"));
         assertEquals(STOP + "; " + ALLOWLIST + "; " + OPEN + "; " + ALLOW, Commands.build(Commands.RESTART, SPOTIFY_MAIN));
         assertEquals("cmd media_session dispatch play", Commands.build(Commands.MEDIA_PLAY, null));
         assertEquals("input keyevent 126", Commands.build(Commands.KEY_PLAY, null));
@@ -89,6 +92,47 @@ public class CommandsTest {
         assertTrue(c.endsWith("| grep 'state:started' | grep -oE 'mutedState:[a-z_]+' | head -1"));
     }
 
+    // Read-only checks of Spotify's state, and the one setting Fix changes: arguments are ignored.
+    @Test public void spotifyServiceAndBackgroundCommandsAreFixed() {
+        assertEquals("dumpsys activity services 'com.spotify.music' | grep -c 'isForeground=true'",
+                Commands.build(Commands.SPOTIFY_FGS, "x; reboot"));
+        assertEquals("appops get 'com.spotify.music' RUN_ANY_IN_BACKGROUND", Commands.build(Commands.SPOTIFY_BG_STATE, "x; reboot"));
+        assertEquals("appops set 'com.spotify.music' RUN_ANY_IN_BACKGROUND allow", Commands.build(Commands.SPOTIFY_BG_ALLOW, "x; reboot"));
+    }
+
+    // Read-only, Spotify's main process only (not its web view or other processes).
+    @Test public void spotifyExitIsFixed() {
+        assertEquals("dumpsys activity exit-info 'com.spotify.music' | grep -m1 'process=com.spotify.music '",
+                Commands.build(Commands.SPOTIFY_EXIT, "x; reboot"));
+    }
+
+    // Real exit-info lines: only a crash or a kill counts, never a stop.
+    @Test public void spotifyCrashed() {
+        assertTrue(Skipper.crashed("          process=com.spotify.music reason=5 (APP CRASH(NATIVE)) subreason=0 (UNKNOWN) status=6"));
+        assertTrue(Skipper.crashed("          process=com.spotify.music reason=4 (APP CRASH(EXCEPTION)) subreason=0 (UNKNOWN) status=0"));
+        assertTrue(Skipper.crashed("          process=com.spotify.music reason=3 (LOW_MEMORY) subreason=0 (UNKNOWN) status=0"));
+        assertFalse(Skipper.crashed("          process=com.spotify.music reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0"));
+        assertFalse(Skipper.crashed("          process=com.spotify.music reason=10 (USER REQUESTED) subreason=22 (REMOVE TASK) status=0"));
+        assertFalse(Skipper.crashed(""));
+        assertFalse(Skipper.crashed(null));
+    }
+
+    // The mute key toggles: it may only be pressed while the music stream is muted.
+    @Test public void unmuteMusicOnlyWhenMuted() {
+        assertEquals("dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164",
+                Commands.build(Commands.UNMUTE_MUSIC, "x; reboot"));
+    }
+
+    @Test public void hushCopyCommands() {
+        assertEquals("dumpsys package 'io.coldmew.hush' | grep -E '^ *(User [0-9]+: |firstInstallTime=|lastUpdateTime=)'",
+                Commands.build(Commands.HUSH_USERS, "io.coldmew.hush"));
+        assertEquals("pm uninstall --user 95 'io.coldmew.hush' 2>&1", Commands.build(Commands.REMOVE_HUSH_COPY, "95/io.coldmew.hush"));
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void hostileCopyUser() { Commands.build(Commands.REMOVE_HUSH_COPY, "0;reboot/io.coldmew.hush"); }
+    @Test(expected = IllegalArgumentException.class) public void hostileCopyPackage() { Commands.build(Commands.REMOVE_HUSH_COPY, "95/x y"); }
+    @Test(expected = IllegalArgumentException.class) public void copyNeedsUser() { Commands.build(Commands.REMOVE_HUSH_COPY, "io.coldmew.hush"); }
+    @Test(expected = IllegalArgumentException.class) public void hostileHushUsers() { Commands.build(Commands.HUSH_USERS, "$(id)"); }
     @Test(expected = IllegalArgumentException.class) public void unknownAction() { Commands.build(999, null); }
     @Test(expected = IllegalArgumentException.class) public void hostileComponent() { Commands.build(Commands.OPEN_APP, "x;reboot"); }
     @Test(expected = IllegalArgumentException.class) public void hostileUri() { Commands.build(Commands.OPEN_URI, "spotify:album:x;id"); }

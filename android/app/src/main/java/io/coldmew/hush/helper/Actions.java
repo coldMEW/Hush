@@ -93,12 +93,14 @@ final class Actions {
     }
 
     // `pm install -r -S <size>` reading the APK from stdin: no file path the shell must read, and
-    // -r keeps the app's data (an update, never a fresh install). Returns pm's output ("Success").
+    // -r keeps the app's data (an update, never a fresh install). Only for Hush's own Android user:
+    // without --user the shell installs for every user, which on phones with an app-clone space
+    // (e.g. Samsung's Dual Messenger) adds a second "Hush" there. Returns pm's output ("Success").
     private static String install(android.os.ParcelFileDescriptor apk, long size) {
         if (apk == null || size <= 0) return "Failure: no APK";
         try (android.os.ParcelFileDescriptor f = apk;
              java.io.InputStream in = new java.io.FileInputStream(f.getFileDescriptor())) {
-            java.lang.Process p = new ProcessBuilder("pm", "install", "-r", "-S", String.valueOf(size))
+            java.lang.Process p = new ProcessBuilder("pm", "install", "-r", "--user", String.valueOf(userId), "-S", String.valueOf(size))
                     .redirectErrorStream(true).start();
             try (java.io.OutputStream out = p.getOutputStream()) {
                 byte[] b = new byte[65536];
@@ -137,7 +139,9 @@ final class Actions {
                 int action = data.readInt();
                 String arg = data.readString();
                 // The permission is only ever granted to Hush itself, whatever Hush asked for.
-                if (action == Commands.GRANT_SECURE_SETTINGS) arg = hushPackage;
+                if (action == Commands.GRANT_SECURE_SETTINGS || action == Commands.HUSH_USERS) arg = hushPackage;
+                // Only Hush itself, and never from the user Hush runs in.
+                if (action == Commands.REMOVE_HUSH_COPY) arg = otherUser(arg) + "/" + hushPackage;
                 String cmd = Commands.build(action, arg);   // throws for anything not in the table
                 reply.writeInt(HelperProtocol.OK);
                 reply.writeString(action == Commands.STOP_READ_FRONT ? stopReadFront(arg, cmd) : Exec.sh(cmd));
@@ -175,6 +179,13 @@ final class Actions {
             default:
                 throw new IllegalArgumentException("unknown transaction " + code);
         }
+    }
+
+    // The user id at the start of "<user>/<anything>", if it is another user than Hush's own.
+    private static String otherUser(String arg) {
+        String u = arg == null ? "" : arg.split("/", 2)[0];
+        if (!u.matches("[0-9]{1,5}") || Integer.parseInt(u) == userId) throw new IllegalArgumentException("not allowed: user " + u);
+        return u;
     }
 
     // UiModeManager.getActiveProjectionTypes() (Android 12+), through the uimode service: bit 1 is

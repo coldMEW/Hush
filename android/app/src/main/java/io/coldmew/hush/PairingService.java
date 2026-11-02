@@ -130,6 +130,7 @@ public class PairingService extends Service {
             try {
                 AdbPairing.pair(AdbKey.get(this), "127.0.0.1", p, code, HelperControl.PAIR_NAME);
                 new Prefs(this).paired(true);
+                new Prefs(this).root(false);   // the user chose Wireless debugging over root
                 Events.add(this, Events.INFO, "Paired with Wireless debugging");
                 set(State.STARTING);
                 show(note(getString(R.string.pair_starting_title), getString(R.string.pair_starting_text), false));

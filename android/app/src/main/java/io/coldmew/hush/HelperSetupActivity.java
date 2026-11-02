@@ -19,12 +19,14 @@ import io.coldmew.hush.helper.HushHelper;
 
 // Set up skipping with Hush alone (no other app): Developer options, pairing with Wireless
 // debugging once, an extra step some phone makers need, then Hush starts its helper by itself.
-// Each step opens the right place and is ticked off as soon as it is done.
+// Each step opens the right place and is ticked off as soon as it is done. On a rooted phone one
+// tap does it instead (Root).
 public class HelperSetupActivity extends Activity {
     private static final int REQ_NOTIF = 1;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private View stepDev, stepPair, stepMaker, stepReady, codeRow;
+    private View stepDev, stepPair, stepMaker, stepReady, stepRoot, codeRow;
+    private boolean rootWorking, rootFailed;
     private TextView intro, progress;
     private EditText code;
     private int makerStep;   // string resource of this phone's extra step, or 0
@@ -64,7 +66,10 @@ public class HelperSetupActivity extends Activity {
             findViewById(R.id.maker_divider).setVisibility(View.VISIBLE);
         }
         stepReady = step(R.id.step_ready, R.string.hs_ready, R.string.hs_ready_desc, R.string.hs_ready_action,
-                v -> HelperControl.ensure(this, true, false));
+                v -> {
+                    new Prefs(this).root(false);   // Start here means Wireless debugging, not root
+                    HelperControl.ensure(this, true, false);
+                });
 
         findViewById(R.id.code_send).setOnClickListener(v -> sendCode());
         code.setOnEditorActionListener((v, id, e) -> {
@@ -72,6 +77,19 @@ public class HelperSetupActivity extends Activity {
             return false;
         });
         findViewById(R.id.use_shizuku).setOnClickListener(v -> startActivity(new Intent(this, ShizukuSetupActivity.class)));
+
+        stepRoot = step(R.id.step_root, R.string.hs_root, R.string.hs_root_desc, R.string.hs_root_action, v -> {
+            rootWorking = true;
+            rootFailed = false;
+            refresh();
+            HelperControl.useRootAsync(this, ok -> {
+                rootWorking = false;
+                rootFailed = !ok;
+                if (ok) finish();   // the main screen shows skipping as ready
+                else refresh();
+            });
+        });
+        if (Root.available(this) || new Prefs(this).root()) findViewById(R.id.root_card).setVisibility(View.VISIBLE);
     }
 
     @Override protected void onResume() {
@@ -162,6 +180,10 @@ public class HelperSetupActivity extends Activity {
         if (codeRow.getVisibility() != codeVisibility) codeRow.setVisibility(codeVisibility);
 
         if (makerStep != 0) state(stepMaker, ready, true);   // cannot be checked from an app: done once skipping works
+
+        ((TextView) stepRoot.findViewById(R.id.desc)).setText(rootWorking ? R.string.hs_root_working
+                : rootFailed ? R.string.hs_root_failed : prefs.root() && ready ? R.string.hs_root_done : R.string.hs_root_desc);
+        state(stepRoot, prefs.root() && ready, !rootWorking);
 
         ((TextView) stepReady.findViewById(R.id.desc)).setText(ready ? R.string.hs_ready_desc_done
                 : paired && !HelperControl.debuggingOn(this) && !HelperControl.canToggleDebugging(this)

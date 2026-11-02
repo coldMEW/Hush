@@ -4,6 +4,33 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.5] - 2026-11-02
+
+### Fixed
+- After a skip, Spotify could play without its notification and lock-screen controls, and a few
+  minutes later stop, pause by itself or disappear from the background (music only came back after
+  opening Spotify). Android lets a restarted Spotify start its playback service only with a fresh
+  battery allowlist entry, and Hush's entry did not count when one was already there (for example
+  after a headset button press). Hush now renews the entry before Spotify starts, again once the
+  music is back, and checks that Spotify's playback service is running.
+- The in-app update could add a second Hush ("Hush Clone") on phones with an app-clone space,
+  such as Samsung's Dual Messenger (#6). Updates now install only for your own user, and a copy
+  that an earlier update created there is removed once after updating.
+- Mute mode: Hush now checks that the music volume really came back on after a muted ad, and
+  turns it on again by itself if it did not.
+- Spotify sometimes crashes by itself in its first seconds after a restart, and the music then
+  stopped. Hush now notices that and starts Spotify again (it leaves Spotify closed if you closed
+  it yourself).
+
+### New
+- Rooted phones (Magisk, KernelSU, APatch) can start skipping with root instead of Wireless
+  debugging: no pairing, no Wi-Fi, and nothing to redo after a restart. Root is used only to start
+  Hush's helper, which then runs with the same limited rights as before.
+
+### Changed
+- Ads are stopped a little sooner: the skip now starts before Hush writes anything to its log, and
+  an ad right after a skip is noticed within a quarter of a second.
+
 ## [2.0.4] - 2026-10-30
 
 ### Fixed
@@ -204,6 +231,7 @@ First public release.
   restarted Spotify as a background-playback app. Hush repairs it; a complete fix is planned for
   1.0.1.
 
+[2.0.5]: https://github.com/coldMEW/Hush/releases/tag/v2.0.5
 [2.0.4]: https://github.com/coldMEW/Hush/releases/tag/v2.0.4
 [2.0.3]: https://github.com/coldMEW/Hush/releases/tag/v2.0.3
 [2.0.2]: https://github.com/coldMEW/Hush/releases/tag/v2.0.2

@@ -44,6 +44,26 @@ public class DebugReceiver extends BroadcastReceiver {
             // submits a code as if typed into the notification.
             String code = i.getStringExtra("code");
             if (code == null) PairingService.start(c); else PairingService.submit(c, code);
+        } else if ("io.coldmew.hush.TEST_MUTE".equals(i.getAction())) {
+            // Hush's own mute and unmute, as during an ad that is muted: --ei seconds N between them.
+            int s = i.getIntExtra("seconds", 3);
+            new Thread(() -> {
+                Hush.muteAd(c);
+                Log.i("Hush", "TEST_MUTE muted, mutedByUs=" + new Prefs(c).mutedByUs());
+                android.os.SystemClock.sleep(s * 1000L);
+                Hush.unmuteIfNeeded(c);
+                android.media.AudioManager am = c.getSystemService(android.media.AudioManager.class);
+                Log.i("Hush", "TEST_MUTE unmuted, music muted=" + am.isStreamMute(android.media.AudioManager.STREAM_MUSIC)
+                        + " volume=" + am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC));
+            }, "hush-test-mute").start();
+        } else if ("io.coldmew.hush.TEST_INSTALL".equals(i.getAction())) {
+            // The updater's install step with a local APK (files/test-update.apk, copied in with
+            // run-as): marks the update like Updater does, then installs through the helper.
+            File apk = new File(c.getFilesDir(), "test-update.apk");
+            new Thread(() -> {
+                new Prefs(c).updating(true);
+                Log.i("Hush", "TEST_INSTALL " + HushHelper.install(apk));
+            }, "hush-test-install").start();
         } else if ("io.coldmew.hush.TEST_HELPER".equals(i.getAction())) {
             // Helper status. extras: --ez start true writes a start command to files/helper-start.sh
             // (run it with: adb shell "$(adb shell run-as <pkg> cat files/helper-start.sh)"; the token

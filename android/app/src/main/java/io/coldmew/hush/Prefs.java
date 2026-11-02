@@ -43,6 +43,12 @@ final class Prefs {
     // Set right before Hush installs its own update, so the new version restarts its helper by itself.
     boolean updating() { return sp.getBoolean("updating", false); }
     void updating(boolean v) { sp.edit().putBoolean("updating", v).commit(); }
+    // After an update: look once for a copy of Hush the update put into another Android user. The
+    // version it was done for, so it runs at most once per installed version.
+    boolean checkCopies() { return sp.getBoolean("check_copies", false); }
+    void checkCopies(boolean v) { sp.edit().putBoolean("check_copies", v).commit(); }
+    int copiesChecked() { return sp.getInt("copies_checked", 0); }
+    void copiesChecked(int version) { sp.edit().putInt("copies_checked", version).commit(); }
     boolean updateCheck() { return sp.getBoolean("update_check", true); }
     void updateCheck(boolean v) { sp.edit().putBoolean("update_check", v).apply(); }
     String updateNotified() { return sp.getString("update_notified", ""); }
@@ -66,6 +72,9 @@ final class Prefs {
     static final String TEST_NONE = "", TEST_SAFE = "safe", TEST_NEEDS_ON = "needs_on";
     boolean paired() { return sp.getBoolean("paired", false); }
     void paired(boolean v) { sp.edit().putBoolean("paired", v).apply(); }
+    // The helper is started with root (see Root) instead of Wireless debugging. Set once it worked.
+    boolean root() { return sp.getBoolean("root", false); }
+    void root(boolean v) { sp.edit().putBoolean("root", v).commit(); }
     // The user went through the Developer options step (newer Android versions do not tell apps).
     boolean devStep() { return sp.getBoolean("dev_step", false); }
     void devStep(boolean v) { sp.edit().putBoolean("dev_step", v).apply(); }
