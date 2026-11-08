@@ -51,8 +51,9 @@ VPN. It is built so that neither can be turned against the phone.
 **Privileged shell (Shizuku or the helper)**
 - The only commands Hush runs are fixed: force-stop and start Spotify, return to the previous app
   or the home screen, press play or pause, open a Spotify playlist or album link, allow Spotify's
-  background-audio app-ops (reset to default when Hush is turned off, once Spotify is not
-  playing), mute and unmute Spotify's
+  background-audio app-ops (back to Android's own default mode for them when Hush is turned off,
+  once Spotify is not playing; 2.0.7 also does this once with Hush off, to repair phones older
+  versions left silent), mute and unmute Spotify's
   playback (the `PLAY_AUDIO` app-op, only during an ad while Android Auto is connected), give the
   restarted Spotify a 30-second battery allowlist entry so it can start its playback service,
   allow Spotify to run in the background (`RUN_ANY_IN_BACKGROUND`, only when Hush finds it

@@ -76,6 +76,10 @@ final class Prefs {
     // keeps this across a reboot, so it is undone as soon as Hush can, never just forgotten.
     boolean mutedSpotify() { return sp.getBoolean("muted_spotify", false); }
     void mutedSpotify(boolean v) { sp.edit().putBoolean("muted_spotify", v).commit(); }
+    // Spotify's background-audio ops were put back to Android's own default once with Hush off
+    // (2.0.6 and older left them in a mode Android treats as denied; issue #13).
+    boolean audioRepaired() { return sp.getBoolean("audio_repaired", false); }
+    void audioRepaired(boolean v) { sp.edit().putBoolean("audio_repaired", v).commit(); }
 
     // Hush's own helper: paired with Wireless debugging; automatic restart after a reboot (opt-in);
     // the per-phone test result (TEST_* below).

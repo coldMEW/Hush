@@ -250,6 +250,40 @@ final class HelperControl {
         });
     }
 
+    // Issue #13: Hush 2.0.6 and older, when turned off, left Spotify's background-audio ops in a mode
+    // Android treats as denied, so Spotify stayed silent until Hush was turned on again. With Hush
+    // off its helper is not started, so nothing would undo that. Once, with Hush off and the phone
+    // set up (paired or root), Hush starts its helper quietly to put them right. Wireless debugging
+    // is switched on for this only where Hush may switch it (as after an in-app update), and
+    // switched off again right after. Without Wi-Fi, or if the start fails, it tries again the next
+    // time Hush starts. When Hush is on, turning it on already allows them.
+    private static void repairAudioOnce(Context c) {
+        Prefs p = new Prefs(c);
+        if (p.enabled() || p.audioRepaired() || !supported() || !(p.paired() || p.root()) || booting) return;
+        worker.execute(() -> {
+            if (new Prefs(c).enabled() || new Prefs(c).audioRepaired()) return;
+            boolean wasOn = debuggingOn(c);
+            if (!HushHelper.ready()) {
+                Result r;
+                boolean userHadItOn = new Prefs(c).debuggingWasOn();   // this start is not the user's choice
+                synchronized (HelperControl.class) { r = startLocked(c, canToggleDebugging(c)); }   // quiet: no failure event
+                new Prefs(c).debuggingWasOn(userHadItOn);
+                if (r != Result.READY) {
+                    if (!wasOn && debuggingOn(c)) setDebugging(c, false);
+                    return;
+                }
+            }
+            // Playing right now: audible at once, and Android's default once Spotify stops (as when
+            // Hush is turned off). Otherwise Android's default now.
+            if (AdWatcher.spotifyPlaying()) { Shell.run(Commands.ALLOW_AUDIO); BackgroundAudio.resetWhenIdle(); }
+            else Shell.run(Commands.RESET_AUDIO);
+            new Prefs(c).audioRepaired(true);
+            Events.add(c, Events.INFO, "Spotify's audio settings were put back to normal");
+            // Leave Wireless debugging as the user had it (Hush is off: its helper is not needed).
+            if (!wasOn && debuggingOn(c)) setDebugging(c, false);
+        });
+    }
+
     // Starts the helper in the background unless a start is already queued.
     static void ensure(Context ctx, boolean mayEnable, boolean notifyOnFailure) {
         Context c = ctx.getApplicationContext();
@@ -369,6 +403,7 @@ final class HelperControl {
         Context c = ctx.getApplicationContext();
         Prefs up = new Prefs(c);
         if (up.updating() && up.copiesChecked() != BuildConfig.VERSION_CODE) up.checkCopies(true);   // see UpdateCopies
+        repairAudioOnce(c);
         if (!wanted(c) || HushHelper.ready() || booting) return;
         Prefs p = new Prefs(c);
         if (p.root()) {   // root: start at once, there is nothing to wait for

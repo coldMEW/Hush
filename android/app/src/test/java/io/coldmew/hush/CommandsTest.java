@@ -56,7 +56,19 @@ public class CommandsTest {
         String unfreeze = "am unfreeze --sticky 'com.spotify.music' >/dev/null 2>&1";
         assertEquals(unfreeze, Commands.build(Commands.UNFREEZE, null));
         assertEquals(ALLOW + "; " + unfreeze, Commands.build(Commands.ALLOW_AND_UNFREEZE, null));
-        assertEquals(ALLOW.replace(" allow ", " default "), Commands.build(Commands.RESET_AUDIO, null));
+        // Issue #13: never "default" (Android 17 treats it as denied and Spotify stays silent); the
+        // phone's own default for each op, read from Hush's untouched entry, and only allow/foreground.
+        String reset = Commands.build(Commands.RESET_AUDIO, null);
+        StringBuilder want = new StringBuilder();
+        for (String op : new String[]{"CONTROL_AUDIO", "CONTROL_AUDIO_PARTIAL", "TAKE_AUDIO_FOCUS"}) {
+            if (want.length() > 0) want.append("; ");
+            want.append("m=$(cmd appops get '").append(BuildConfig.APPLICATION_ID).append("' ").append(op)
+                    .append(" 2>/dev/null | sed -n -e 's/^Default mode: \\([a-z]*\\).*/\\1/p' -e 's/^").append(op)
+                    .append(": \\([a-z]*\\).*/\\1/p' | head -n 1); case \"$m\" in allow|foreground) cmd appops set 'com.spotify.music' ")
+                    .append(op).append(" \"$m\" 2>/dev/null;; esac");
+        }
+        assertEquals(want.toString(), reset);
+        assertFalse(reset.contains(" default"));
         assertEquals("am isfrozen 'com.spotify.music' 2>/dev/null", Commands.build(Commands.IS_FROZEN, null));
         assertEquals("am start -a android.intent.action.VIEW -p 'com.spotify.music' -d 'spotify:album:x1:play' >/dev/null 2>&1",
                 Commands.build(Commands.OPEN_URI, "spotify:album:x1"));

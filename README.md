@@ -165,6 +165,15 @@ ad instead of skipping it, because Spotify can't load the next song after a rest
 </details>
 
 <details>
+<summary><b>Spotify is silent after turning Hush off</b></summary>
+
+Update to 2.0.7 or newer. Older versions left one of Spotify's audio permissions in a mode that
+newer Android versions treat as "not allowed", so Spotify stayed silent even at full volume (#13).
+2.0.7 repairs it by itself the first time it starts; **Recent activity** then says "Spotify's audio
+settings were put back to normal".
+</details>
+
+<details>
 <summary><b>The APK doesn't install</b></summary>
 
 Hush isn't on the Play Store, so Play Protect may warn about it: tap **More details** →
@@ -350,6 +359,7 @@ vulnerability privately, are in [SECURITY.md](SECURITY.md).
   crash, no "Hush Clone" on update, root support
 - [x] v2.0.6 — Xiaomi fixes (ad detection, restarts, Wi-Fi), casting to a speaker or computer keeps
   playing there, music comes back sooner
+- [x] v2.0.7 — Spotify plays normally again after Hush is turned off
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 Details for each version are in the [changelog](CHANGELOG.md).

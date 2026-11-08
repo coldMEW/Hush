@@ -4,6 +4,18 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.7] - 2026-11-08
+
+### Fixed
+- After Hush was turned off, Spotify could stay completely silent on newer Android versions, even
+  at full volume, until Hush was turned on again (#13). Turning Hush off gave Spotify's
+  background-audio permissions the wrong mode, which Android treats as "not allowed", so the volume
+  buttons couldn't help either. Hush now puts back the exact mode Android uses on that phone.
+- Phones already left silent by an older version are repaired by themselves: the first time 2.0.7
+  starts with Hush off, it starts its helper once to put Spotify's audio settings right (switching
+  Wireless debugging on for a moment only where Hush is allowed to, and back off right after) and
+  notes it in **Recent activity**.
+
 ## [2.0.6] - 2026-11-07
 
 ### Fixed

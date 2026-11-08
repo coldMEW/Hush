@@ -167,7 +167,15 @@ it stays muted until the phone is unlocked, because unlocking brings Spotify's s
 Measured: muted about 10.5 s after playback starts, screen on or off.
 
 Since 1.0.1 Hush sets these app-ops (and `TAKE_AUDIO_FOCUS`) to `allow` for Spotify through
-its helper (or Shizuku) while Hush is on, and back to `default` when Hush is turned off. With that, playback after
+its helper (or Shizuku) while Hush is on. When Hush is turned off they go back to the mode Android
+itself gives them on that phone (`foreground` on Android 17), read from Hush's own untouched entry.
+Before 2.0.7 Hush wrote the literal `default` mode instead, which Android 17 treats as denied, so
+Spotify stayed silent after Hush was turned off (#13; Android 15 tested unaffected); if the real
+mode can't be read, the op stays `allow`. Phones left that way by an older version are repaired
+once: the first time 2.0.7 starts with Hush off (and Hush is paired or uses root), it starts its
+helper quietly, switching Wireless debugging on only where Hush has the permission to and off again
+right after, sets the ops (to `allow` first if Spotify is playing at that moment, then the default
+once it stops), and logs "Spotify's audio settings were put back to normal". With that, playback after
 a screen-off restart stayed audible throughout (verified for 30 s, with Spotify promoting its own
 service after about 29 s). A watchdog still re-applies the ops and cycles pause/play if a mute is
 ever detected after a skip.

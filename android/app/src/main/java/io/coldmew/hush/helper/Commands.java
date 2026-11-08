@@ -40,7 +40,11 @@ public final class Commands {
     // (CONTROL_AUDIO app-ops); see BackgroundAudio.
     private static final String[] AUDIO_OPS = {"CONTROL_AUDIO", "CONTROL_AUDIO_PARTIAL", "TAKE_AUDIO_FOCUS"};
     static final String ALLOW = appops("allow");
-    static final String RESET = appops("default");
+    // Back to the mode Android gives these ops on this phone (issue #13). Not the "default" mode:
+    // Android 17 counts that as denied, so Spotify stayed silent after Hush was turned off. The
+    // real default (foreground on Android 17) is read from Hush's own entry, which Hush never
+    // sets; if it cannot be read, the op stays allowed, which keeps Spotify audible.
+    static final String RESET = resetAppops(io.coldmew.hush.BuildConfig.APPLICATION_ID);
     private static final String STOP = "am force-stop " + arg(SPOTIFY);
     // The temporary allowlist lets the new Spotify start its playback service from the background;
     // without it Spotify plays with no notification or lock-screen controls, as a cached app that
@@ -156,6 +160,18 @@ public final class Commands {
             if (b.length() > 0) b.append("; ");
             b.append("cmd appops set ").append(arg(SPOTIFY)).append(' ').append(op).append(' ').append(mode)
                     .append(" 2>/dev/null");
+        }
+        return b.toString();
+    }
+
+    static String resetAppops(String reference) {
+        StringBuilder b = new StringBuilder();
+        for (String op : AUDIO_OPS) {
+            if (b.length() > 0) b.append("; ");
+            b.append("m=$(cmd appops get ").append(arg(reference)).append(' ').append(op)
+                    .append(" 2>/dev/null | sed -n -e 's/^Default mode: \\([a-z]*\\).*/\\1/p' -e 's/^")
+                    .append(op).append(": \\([a-z]*\\).*/\\1/p' | head -n 1); case \"$m\" in allow|foreground) ")
+                    .append("cmd appops set ").append(arg(SPOTIFY)).append(' ').append(op).append(" \"$m\" 2>/dev/null;; esac");
         }
         return b.toString();
     }
