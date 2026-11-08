@@ -60,6 +60,16 @@ final class Prefs {
     String carMode() { return sp.getString("car_mode", MODE_RESTART); }
     void carMode(String v) { sp.edit().putString("car_mode", v).apply(); }
 
+    // The volume of the device Spotify plays on (Spotify Connect, Cast) before Hush muted an ad
+    // there; -1 when Hush has not muted it.
+    // Wireless debugging was on when the helper last started (the user's own setting, unless the
+    // automatic restart keeps it off). Android switches it off when Wi-Fi drops; Hush puts it back.
+    boolean debuggingWasOn() { return sp.getBoolean("debugging_was_on", false); }
+    void debuggingWasOn(boolean v) { sp.edit().putBoolean("debugging_was_on", v).apply(); }
+
+    int castVolume() { return sp.getInt("cast_volume", -1); }
+    void castVolume(int v) { sp.edit().putInt("cast_volume", v).commit(); }
+
     boolean mutedByUs() { return sp.getBoolean("muted_by_us", false); }
     void mutedByUs(boolean v) { sp.edit().putBoolean("muted_by_us", v).commit(); }
     // Spotify itself was muted (PLAY_AUDIO app-op, used in Android Auto). Unlike the volume, Android

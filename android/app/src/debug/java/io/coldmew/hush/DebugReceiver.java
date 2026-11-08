@@ -31,9 +31,16 @@ public class DebugReceiver extends BroadcastReceiver {
                 Log.i("Hush", "TEST_PLAY " + how + " " + uri + " actions=" + (mc.getPlaybackState() == null ? -1 : mc.getPlaybackState().getActions()));
                 break;
             }
+        } else if ("io.coldmew.hush.TEST_ON".equals(i.getAction())) {
+            // Hush's power button: --ez on false turns it off; --es mode restart|mute|off.
+            String mode = i.getStringExtra("mode");
+            if (mode != null) new Prefs(c).mode(mode);
+            Hush.setEnabled(c, i.getBooleanExtra("on", true));
+            Log.i("Hush", "TEST_ON enabled=" + new Prefs(c).enabled() + " mode=" + new Prefs(c).mode());
         } else if ("io.coldmew.hush.TEST_SKIP".equals(i.getAction())) {
             Skipper.debugForcePlaylistFix = i.getBooleanExtra("playlist", false);
             Skipper.debugNoButton = i.getBooleanExtra("nobutton", false);   // test the fallback
+            Skipper.debugError = i.getBooleanExtra("error", false);         // test the error recovery
             Skipper.start(c, true);
         } else if ("io.coldmew.hush.TEST_SLEEP".equals(i.getAction())) {
             int m = i.getIntExtra("minutes", 0), s = i.getIntExtra("seconds", 0);
@@ -73,7 +80,9 @@ public class DebugReceiver extends BroadcastReceiver {
                     + android.provider.Settings.Global.getInt(c.getContentResolver(), android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, -1)
                     + " wifi=" + HelperControl.onWifi(c) + " debugging=" + HelperControl.debuggingOn(c)
                     + " canToggle=" + HelperControl.canToggleDebugging(c) + " car=" + Car.connected(c)
-                    + " projection=" + HushHelper.projection() + "\n" + HelperControl.diagnostics(c));
+                    + " projection=" + HushHelper.projection() + " watcher=" + AdWatcher.connected()
+                    + " spotifyRemote=" + AdWatcher.spotifyRemote() + " remoteVolume=" + (AdWatcher.remoteSpotify() != null)
+                    + "\n" + HelperControl.diagnostics(c) + Xiaomi.diagnostics(c));
             if (i.getBooleanExtra("start", false)) {
                 try (FileOutputStream f = new FileOutputStream(new File(c.getFilesDir(), "helper-start.sh"))) {
                     f.write(HushHelper.startCommand(c).getBytes(StandardCharsets.UTF_8));

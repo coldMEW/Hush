@@ -27,7 +27,8 @@ VPN. It is built so that neither can be turned against the phone.
   it, allow its background audio, press play, open a Spotify link, read which app is in front and
   whether Spotify is muted or frozen, mute or unmute Spotify's playback, read whether Android Auto
   is using Spotify, read whether Spotify runs its playback service, whether it may run in the
-  background and why it last closed, allow it to run in the background, turn the music volume back on, grant Hush `WRITE_SECURE_SETTINGS`, and remove a copy
+  background and why it last closed, allow it to run in the background, turn the music volume back on, grant Hush `WRITE_SECURE_SETTINGS`, read and allow
+  Xiaomi's Autostart switch for Hush and Spotify only (MIUI / HyperOS), check whether Spotify is playing sound on the phone, and remove a copy
   of Hush that an older update put into another Android user) and builds every command itself
   from an action number and validated arguments. The user-related actions only ever name Hush's
   own package, and removing a copy is refused for the user Hush runs in.

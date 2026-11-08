@@ -100,7 +100,9 @@ https://github.com/user-attachments/assets/b7713aba-1956-459b-b680-6d76fd52765b
    those phones. Already using Shizuku? Hush uses it too, and you can skip this. On a rooted phone
    (Magisk, KernelSU, APatch) the setup screen offers **Use root** instead: one tap, no pairing and
    no Wi-Fi needed. Root is used only to start Hush's helper.
-4. Back in Hush, allow **Notification access** and **Unrestricted battery** when asked.
+4. Back in Hush, allow **Notification access** and **Unrestricted battery** when asked. On
+   Xiaomi, Redmi and POCO phones also tap **Allow Autostart** and switch Hush on in the list, so
+   Hush starts by itself after a restart.
 5. Optional: turn on **Restart automatically after a reboot**. Hush tests once (about 10 seconds)
    whether your phone keeps its helper running with Wireless debugging off, keeps it off if so,
    and shows the result.
@@ -158,7 +160,8 @@ Wireless debugging only on Wi-Fi; no internet is needed on that Wi-Fi). When Wi-
 switches Wireless debugging off; with USB debugging also off it then stops its debugging service
 and Hush's helper with it. So with **Skip** selected, Hush turns USB debugging on (shown in
 **Recent activity**). If the helper does stop, ads are muted until Wi-Fi is back, and Hush resumes
-by itself.
+by itself. With no internet at all (no Wi-Fi and no mobile data), Hush mutes only Spotify for an
+ad instead of skipping it, because Spotify can't load the next song after a restart.
 </details>
 
 <details>
@@ -205,9 +208,37 @@ opens Spotify. Make sure Hush and Spotify have unrestricted battery use. If Spot
 skip but its notification is missing, or it stops a few minutes later, Spotify is probably
 restricted in the background (its battery setting): Hush lifts that by itself and says so in Recent
 activity. Only if it can't (no helper or Shizuku) it shows **Spotify in the background** with a
-**Fix** button. On Xiaomi, Redmi and POCO phones, also allow **Autostart** for Spotify and set its
-battery saver to **No restrictions** (Settings → Apps → Spotify). If it still fails, Recent
-activity shows the steps of the failed try: please include them in an issue.
+**Fix** button. On Xiaomi, Redmi and POCO phones, set Spotify's battery saver to **No
+restrictions** (Settings → Apps → Spotify). If it still fails, Recent activity shows the steps of
+the failed try: please include them in an issue.
+</details>
+
+<details>
+<summary><b>Xiaomi, Redmi and POCO phones</b></summary>
+
+- **Pairing:** Xiaomi shows no pop-up for Hush's pairing code. Stay on the pairing code screen, pull
+  down the notification shade, open Hush's **Enter the pairing code** notification with its arrow
+  and tap **Enter code**.
+- **Notification access:** Xiaomi shows a warning screen first. Tick the box and tap OK when the
+  countdown ends.
+- **Battery:** pick **No restrictions** for Hush.
+- **USB debugging (Security settings)** in Developer options: turn it on once while you set up
+  Hush. Hush then switches Wireless debugging and USB debugging by itself, also after you turn it
+  off again. If it was never on, Hush asks you to turn on plain **USB debugging** (that keeps
+  skipping working when Wi-Fi drops) and, after a restart, to turn on Wireless debugging yourself.
+- **Autostart:** switch Hush on once in Xiaomi's Background autostart list (Hush shows an **Allow
+  Autostart** row with a button to it). Xiaomi keeps only an Autostart you switch on yourself;
+  without it, Hush does not start after a restart or an update until you open it. Hush also allows
+  it for itself and Spotify while its helper runs, which covers clearing recent apps.
+</details>
+
+<details>
+<summary><b>Playing on a speaker, TV or computer (Spotify Connect, Cast)</b></summary>
+
+A skip would move the music back to your phone, so Hush doesn't restart Spotify while it plays on
+another device. Instead it turns Spotify's volume on that device down for the ad and back up after.
+If Spotify plays the ad on your phone instead, Hush mutes only Spotify on the phone; other apps keep
+their sound. If neither is possible, the ad plays, but your music stays on the other device.
 </details>
 
 <details>
@@ -287,7 +318,10 @@ Numbers vary a little between phones.
 ## Known issues
 
 - Restoring the previous playlist works for playlists and albums, not for an artist's
-  "Popular" list or radio (Hush leaves those as Spotify brings them back).
+  "Popular" list or radio (Hush leaves those as Spotify brings them back). With the phone locked,
+  Spotify ignores the switch until you unlock it.
+- Playing on a speaker, TV or computer: if that device doesn't let Hush turn its volume down, the
+  ad plays there (a skip would move the music to your phone).
 - Android Auto: tested with real ads in Android Auto's desktop head unit (the car screen
   emulator), not yet in a car. If a skip still restarts Android Auto, choose **Mute** under **In the
   car** and open an issue.
@@ -314,6 +348,8 @@ vulnerability privately, are in [SECURITY.md](SECURITY.md).
 - [x] v2.0.4 — Android Auto: skips keep navigation running, Mute works in the car
 - [x] v2.0.5 — Spotify keeps its notification and keeps playing after a skip, restarts after a
   crash, no "Hush Clone" on update, root support
+- [x] v2.0.6 — Xiaomi fixes (ad detection, restarts, Wi-Fi), casting to a speaker or computer keeps
+  playing there, music comes back sooner
 - [ ] ESP32 companion with similar features for speakers and other devices
 
 Details for each version are in the [changelog](CHANGELOG.md).

@@ -163,7 +163,9 @@ public class HelperSetupActivity extends Activity {
             case PAIRING: case STARTING: pairDesc = R.string.pair_working_text; break;
             case WRONG_CODE: pairDesc = R.string.pair_wrong_text; break;
             case FAILED: pairDesc = R.string.pair_failed_text; break;
-            default: pairDesc = !wifi && !paired ? R.string.hs_pair_wifi : R.string.hs_pair_desc;
+            // Xiaomi shows no pop-up for apps from outside the Play Store and folds the
+            // notification, hiding its Enter code button: say where to find it.
+            default: pairDesc = !wifi && !paired ? R.string.hs_pair_wifi : Xiaomi.phone() ? R.string.hs_pair_desc_xiaomi : R.string.hs_pair_desc;
         }
         ((TextView) stepPair.findViewById(R.id.desc)).setText(pairDesc);
         boolean pairing = ps == PairingService.State.SEARCHING || ps == PairingService.State.FOUND

@@ -126,6 +126,8 @@ public class MainActivity extends Activity {
         });
         optTest.setOnClickListener(v -> {
             if (!Shell.ready()) { toast(R.string.test_needs_shizuku); openSkipSetup(); return; }
+            // Without a Spotify session there is nothing to restart: the test would do nothing.
+            if (!AdWatcher.hasSpotify()) { toast(R.string.test_needs_spotify); return; }
             toast(Skipper.start(this, true) ? R.string.test_started : R.string.test_busy);
         });
         optAuto = row(R.id.opt_auto, R.string.opt_auto, R.string.opt_auto_desc);
@@ -186,9 +188,17 @@ public class MainActivity extends Activity {
         HushHelper.addListener(helperChanged);
         ui.post(ticker);
         if (prefs.enabled()) Hush.applyDns(this);   // e.g. VPN was taken over by another app meanwhile
+        AdWatcher.ensureConnected(this);
         // Spotify's background setting may have been changed in Settings meanwhile: allow it again
         // (off the main thread).
-        if (Shell.ready()) new Thread(() -> { SpotifyBackground.ensureAllowed(this); ui.post(this::refresh); }, "hush-spotify-bg").start();
+        if (Shell.ready()) new Thread(() -> {
+            SpotifyBackground.ensureAllowed(this);
+            // The permission to switch Wireless debugging may have been refused when the helper
+            // connected (Xiaomi: until USB debugging (Security settings) is on): ask again.
+            if (HushHelper.ready() && Build.VERSION.SDK_INT >= 33 && !HelperControl.canToggleDebugging(this))
+                Shell.run(io.coldmew.hush.helper.Commands.GRANT_SECURE_SETTINGS, getPackageName());
+            ui.post(this::refresh);
+        }, "hush-spotify-bg").start();
     }
 
     @Override protected void onPause() {
@@ -367,7 +377,8 @@ public class MainActivity extends Activity {
         String report = "Hush " + v + "\nphone: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE
                 + " (API " + Build.VERSION.SDK_INT + ")\nSpotify: " + spotify + "\nmode: " + prefs.mode() + ", on: " + prefs.enabled()
                 + "\nnetwork: " + (HelperControl.onWifi(this) ? "Wi-Fi" : "no Wi-Fi") + ", Android Auto: " + (Car.connected(this) ? "yes" : "no")
-                + "\n" + HelperControl.diagnostics(this)
+                + "\n" + HelperControl.diagnostics(this) + Xiaomi.diagnostics(this)
+                + "\nad watcher: " + (AdWatcher.connected() ? "connected" : Hush.listenerEnabled(this) ? "allowed, not connected" : "no access")
                 + "\nrecent problems:" + (fails.length() == 0 ? " none" : fails);
         android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
         cm.setPrimaryClip(android.content.ClipData.newPlainText("Hush diagnostics", report));
@@ -433,8 +444,11 @@ public class MainActivity extends Activity {
 
         statusDetails.setVisibility(on ? View.VISIBLE : View.GONE);
         if (on) {
-            value(R.id.st_detect, offMode ? R.string.v_off : listener ? R.string.v_active : R.string.v_no_access,
-                    offMode ? R.color.neutral : listener ? R.color.good : R.color.bad);
+            // Access granted is not enough: Android may not have connected the watcher (see
+            // AdWatcher.ensureConnected, which asks again).
+            boolean watching = listener && AdWatcher.connected();
+            value(R.id.st_detect, offMode ? R.string.v_off : watching ? R.string.v_active : listener ? R.string.v_reconnecting : R.string.v_no_access,
+                    offMode ? R.color.neutral : watching ? R.color.good : listener ? R.color.warn : R.color.bad);
             value(R.id.st_skip, offMode ? R.string.v_off : muteMode ? R.string.v_mute : !shizuku ? R.string.v_mute_fallback
                             : HushHelper.ready() ? R.string.v_skip : R.string.v_skip_shizuku,
                     offMode ? R.color.neutral : skipMode && !shizuku ? R.color.warn : R.color.good);
@@ -509,7 +523,7 @@ public class MainActivity extends Activity {
             setupRow(R.string.setup_spotify, R.string.setup_spotify_missing, R.string.action_install,
                     v -> open(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + Hush.SPOTIFY))));
         if (!listener)
-            setupRow(R.string.setup_listener, R.string.setup_listener_desc, R.string.action_allow, v -> {
+            setupRow(R.string.setup_listener, Xiaomi.phone() ? R.string.setup_listener_desc_xiaomi : R.string.setup_listener_desc, R.string.action_allow, v -> {
                 prefs.listenerAsked(true);
                 Intent i = Build.VERSION.SDK_INT >= 30
                         ? new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
@@ -552,8 +566,30 @@ public class MainActivity extends Activity {
             setupRow(R.string.setup_notifications, R.string.setup_notifications_desc, R.string.action_allow,
                     v -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF));
         if (!getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName()))
-            setupRow(R.string.setup_battery, R.string.setup_battery_desc, R.string.action_allow,
+            setupRow(R.string.setup_battery, Xiaomi.phone() ? R.string.setup_battery_desc_xiaomi : R.string.setup_battery_desc, R.string.action_allow,
                     v -> open(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))));
+        // Xiaomi forgot the Autostart Hush set for itself at a restart: only one the user switches on
+        // in Xiaomi's own list lasts, and without it Hush does not start after a restart or update.
+        if (Xiaomi.askAutostart(this))
+            setupRow(R.string.setup_xiaomi_autostart, R.string.setup_xiaomi_autostart_desc, R.string.action_open, v -> {
+                Xiaomi.autostartAsked(this);
+                if (!open(Xiaomi.autostartSettings(this)))
+                    open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            });
+        // Xiaomi without "USB debugging (Security settings)": the helper can't change settings, so
+        // Hush can't switch USB debugging on (keeps its helper running when Wi-Fi drops) nor
+        // Wireless debugging (automatic restart after a reboot). Plain USB debugging, which needs no
+        // Mi account, covers the first (measured on HyperOS 2: the helper kept running with Wi-Fi off
+        // and only that on), so it is asked for first; the Security switch only for the second.
+        boolean xiaomiLimited = Xiaomi.phone() && HushHelper.ready() && !prefs.root() && Build.VERSION.SDK_INT >= 33
+                && !HelperControl.canToggleDebugging(this);
+        Intent devOptions = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // Still off although Hush tried (see HelperControl.keepRunningOffWifi): only the user can.
+        if (Xiaomi.phone() && HushHelper.ready() && !prefs.root() && Prefs.MODE_RESTART.equals(prefs.mode())
+                && Settings.Global.getInt(getContentResolver(), Settings.Global.ADB_ENABLED, 1) == 0)
+            setupRow(R.string.setup_usb_debugging, R.string.setup_usb_debugging_desc, R.string.action_open, v -> open(devOptions));
+        if (xiaomiLimited)
+            setupRow(R.string.setup_xiaomi_security, R.string.setup_xiaomi_security_desc, R.string.action_open, v -> open(devOptions));
         setupSection.setVisibility(setupList.getChildCount() > 0 ? View.VISIBLE : View.GONE);
     }
 
@@ -584,7 +620,9 @@ public class MainActivity extends Activity {
                     v -> open(new Intent(Build.VERSION.SDK_INT >= 29 ? Settings.Panel.ACTION_WIFI : Settings.ACTION_WIFI_SETTINGS)));
         } else if (prefs.paired()) {
             boolean tap = HelperControl.canToggleDebugging(this) || HelperControl.debuggingOn(this);
-            setupRow(R.string.setup_skip, tap ? R.string.setup_skip_resume : R.string.setup_skip_off,
+            // Wireless debugging already on: the helper stopped for another reason (e.g. it kept stopping).
+            int desc = !tap ? R.string.setup_skip_off : HelperControl.debuggingOn(this) ? R.string.setup_skip_resume_on : R.string.setup_skip_resume;
+            setupRow(R.string.setup_skip, desc,
                     tap ? R.string.action_resume : R.string.action_open, v -> {
                         if (tap) { v.setEnabled(false); HelperControl.ensure(this, true, true); }
                         else openSkipSetup();

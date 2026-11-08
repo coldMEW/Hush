@@ -34,6 +34,7 @@ final class Hush {
             BackgroundAudio.apply(c);
             HelperControl.keepRunningOffWifiAsync(c);
             try { NotificationListenerService.requestRebind(new ComponentName(c, AdWatcher.class)); } catch (Exception ignored) {}
+            AdWatcher.ensureConnected(c);   // requestRebind alone does not reconnect a dropped watcher
         } else {
             Events.add(c, Events.INFO, "Hush turned off");
             stopVpn(c);
@@ -67,6 +68,15 @@ final class Hush {
     // music volume is muted, which works without any setup.
     static void muteAd(Context c) {
         Prefs p = new Prefs(c);
+        // Spotify plays on a speaker, TV or computer: the phone's volume does not reach it, but the
+        // session's remote volume does. Hush turns it to 0 and back when the ad is over.
+        android.media.session.MediaController remote = AdWatcher.remoteSpotify();
+        if (remote != null) {
+            int now = remote.getPlaybackInfo().getCurrentVolume();
+            if (p.castVolume() < 0 && now > 0) p.castVolume(now);
+            remote.setVolumeTo(0, 0);
+            return;
+        }
         if (Shell.ready() && Car.connected(c)) {
             p.mutedSpotify(true);
             SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.MUTE_SPOTIFY));
@@ -77,8 +87,15 @@ final class Hush {
         }
     }
 
+    // Silences Spotify alone (its PLAY_AUDIO app-op, through the helper); unmuteIfNeeded undoes it.
+    static void muteSpotify(Context c) {
+        new Prefs(c).mutedSpotify(true);
+        SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.MUTE_SPOTIFY));
+    }
+
     static void unmuteIfNeeded(Context c) {
         Prefs p = new Prefs(c);
+        restoreCastVolume(c);
         if (p.mutedSpotify() && Shell.ready()) {   // without a backend it stays marked and is undone later
             p.mutedSpotify(false);
             SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_SPOTIFY));
@@ -105,12 +122,26 @@ final class Hush {
         Prefs p = new Prefs(c);
         if (!am.isStreamMute(AudioManager.STREAM_MUSIC)) { p.mutedByUs(false); return; }
         if (step == 0) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
-        else if (step == 1 && Shell.ready()) SPOTIFY_AUDIO.execute(() -> Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_MUSIC));
+        else if (step == 1 && Shell.ready()) SPOTIFY_AUDIO.execute(() -> Xiaomi.noteInput(Shell.run(io.coldmew.hush.helper.Commands.UNMUTE_MUSIC)));
         else {
             Events.add(c, Events.FAIL, "Music volume still muted after an ad: Hush tries again as soon as it can");
             return;   // mark kept: retried when the helper connects or at the next skip
         }
         AUDIO_CHECK.postDelayed(() -> finishUnmute(c, am, gen, step + 1), 600);
+    }
+
+    // The volume of the device Spotify plays on, saved by muteAd. Given back as soon as Spotify's
+    // session for that device is there; if the music was moved off it meanwhile, the mark stays and
+    // the volume is given back the next time Spotify plays on another device (AdWatcher), so a
+    // speaker is never left at 0.
+    static void restoreCastVolume(Context c) {
+        Prefs p = new Prefs(c);
+        int cast = p.castVolume();
+        if (cast < 0) return;
+        android.media.session.MediaController remote = AdWatcher.remoteSpotify();
+        if (remote == null) return;
+        remote.setVolumeTo(cast, 0);
+        p.castVolume(-1);
     }
 
     static boolean listenerEnabled(Context c) {

@@ -63,7 +63,10 @@ The order of steps matters:
    including a song picked from search (`spotify:track:…`), an artist's Popular list or radio,
    and takes it as soon as Spotify reports it, also when the ad comes before the new song starts.
    Sources other than playlists and albums are left as Spotify brought them back: before 2.0.3
-   Hush ignored them and could switch back to an older playlist.
+   Hush ignored them and could switch back to an older playlist. The link opens Spotify's screen;
+   the app that was in front comes back as soon as Spotify has taken the playlist (at most 3 s; a
+   fixed 0.8 s was too short on slower phones). A locked phone does not handle the link until it
+   is unlocked.
 7. If Android still reports the player as muted, a pause/play through the dispatcher clears it.
 
 **Android Auto.** While a car screen is connected, a skip still restarts Spotify in the background
@@ -94,6 +97,22 @@ that it is playing, which trails the actual sound by up to a second. If a restar
 Hush tries once more, then falls back to muting the rest of the break and shows a notification.
 
 Hush never sends wake-up, power or sleep keys, so the phone is never woken or locked.
+
+**Playing on another device.** While Spotify plays on a speaker, TV or computer (Spotify Connect or
+Cast), its playback state carries `com.spotify.music.extra.ACTIVE_PLAYBACK_LOCAL = false`. A restart
+would bring the music back on the phone, so Hush does not restart Spotify then. If Spotify hands
+that device's volume to Android (the session's volume is then "remote"), Hush turns it to 0 for the
+ad and back afterwards. Otherwise it watches the break: Spotify can play the ad on the phone
+itself and then send the music back to the other device. Every second during such a break the
+helper counts Spotify's playing audio on the phone (`dumpsys audio`, matched by Spotify's app id, so
+any Spotify process counts and no other app does). Once there is some, Hush silences Spotify alone
+(its `PLAY_AUDIO` app-op) until the break ends. A break that began on another device is never
+skipped, even if Spotify then reports the ad as local.
+
+**Pressing play.** When the new session is ready, play goes through the system media-key
+dispatcher first, the route that worked on every phone tested. Xiaomi phones refuse key events from
+the shell unless "USB debugging (Security settings)" is on; once Hush sees that refusal it no longer
+uses that route (measured on Xiaomi: music back in 3.4 s instead of 6.1 s).
 
 ## 3. DNS filter
 
@@ -229,6 +248,37 @@ Wireless debugging on itself (with `WRITE_SECURE_SETTINGS`, which the helper gra
 skipping is back in about 1 s (up to about 6 s if Wireless debugging takes a moment to start).
 Without Wi-Fi, Hush waits and tries again by itself as soon as Wi-Fi is back (about 4 to 7 s);
 Recent activity says so.
+
+It works the other way round too. If Hush's own process is closed (a phone's cleaner, a crash,
+Force stop), the helper keeps offering its Binder: every second for 30 s, then every 30 s, as long as
+Hush is installed. Offering it goes through Hush's content provider, which starts Hush again, so
+skipping comes back by itself, also on mobile data (measured: Hush force-stopped with Wi-Fi off,
+back with its helper within 10 s). Before 2.0.6 the helper gave up after 30 s, and only Wi-Fi could
+bring skipping back. A helper whose token Hush no longer holds (a newer helper took over) leaves.
+
+**Xiaomi.** Xiaomi's cleaner kills Hush when it is swiped away from recent apps, and Android's
+attempt to connect Hush's notification listener again is then refused unless Hush may autostart
+(the log says `AutoStartManagerService MIUILOG- Reject service`). The helper therefore allows
+Xiaomi's Autostart (app-op 10008) for Hush and Spotify when it connects; this works also without
+"USB debugging (Security settings)". Hush also reconnects its listener itself whenever it starts or
+is opened: `requestRebind` does nothing for a listener the system dropped, so Hush switches its
+listener component off and on, which makes Android connect it again.
+
+An Autostart set by the helper is gone after the next restart (measured on HyperOS 2: back to
+"ignore", Hush not started), while one the user switches on in Xiaomi's own list stays. So when the
+helper finds Hush's Autostart off again, Hush shows an **Allow Autostart** row that opens that list.
+
+Xiaomi refuses `pm grant` and `settings put` from the shell unless "USB debugging (Security
+settings)" is on, so that switch is needed once: the helper then grants Hush
+`WRITE_SECURE_SETTINGS`, and Hush keeps using that permission after the switch is turned off
+again (measured: Hush switched Wireless debugging and USB debugging itself with the switch off).
+
+**No internet.** A restarted Spotify can't load the next song without a connection, so the music
+would not come back after a skip. When an ad starts and no network other than a VPN can reach the
+internet (mobile data counts), Hush mutes only Spotify (its `PLAY_AUDIO` app-op) instead of
+restarting it, and the music goes on from Spotify's cache. If the connection comes back while the
+break goes on, Hush unmutes Spotify and skips the rest of the break (measured on Xiaomi: music back
+in 2.8 s).
 
 **Updates.** Once a day (unless turned off) Hush asks GitHub's public API for the latest release;
 nothing about the user or the phone is sent. A newer version is announced once, with the first line

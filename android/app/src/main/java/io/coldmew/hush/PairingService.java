@@ -119,6 +119,19 @@ public class PairingService extends Service {
             return;
         }
         int p = port;
+        if (p <= 0 && state == State.IDLE) {
+            // Pairing already ended (Android stops it after about 3 minutes): the code arrived late
+            // and would be ignored without a word. Say so; the tap opens the setup screen.
+            getSystemService(NotificationManager.class).notify(NOTIF, new Notification.Builder(this, Hush.CH_ALERT)
+                    .setSmallIcon(R.drawable.ic_stat_hush).setColor(getColor(R.color.accent))
+                    .setContentTitle(getString(R.string.pair_expired_title))
+                    .setContentText(getString(R.string.pair_expired_text))
+                    .setStyle(new Notification.BigTextStyle().bigText(getString(R.string.pair_expired_text)))
+                    .setContentIntent(PendingIntent.getActivity(this, 9, new Intent(this, HelperSetupActivity.class), PendingIntent.FLAG_IMMUTABLE))
+                    .setAutoCancel(true).build());
+            stopSelf();
+            return;
+        }
         if (p <= 0) {
             show(note(getString(R.string.pair_searching_title), getString(R.string.pair_searching_text), false));
             return;

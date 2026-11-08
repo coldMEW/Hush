@@ -14,15 +14,23 @@ public final class Commands {
 
     // Action ids. arg: Spotify's launch component for STOP_READ_FRONT, OPEN_AND_ALLOW, RESTART; a
     // launcher component for OPEN_APP; a playlist/album URI for OPEN_URI; Hush's package name for
-    // GRANT_SECURE_SETTINGS and HUSH_USERS; "<user id>/<Hush's package>" for REMOVE_HUSH_COPY. The
-    // others take none.
+    // GRANT_SECURE_SETTINGS and HUSH_USERS; "<user id>/<Hush's package>" for REMOVE_HUSH_COPY; Hush's
+    // package or Spotify's for MIUI_AUTOSTART. The others take none.
     public static final int STOP_READ_FRONT = 1, ALLOW_AUDIO = 2, OPEN_AND_ALLOW = 3, RESTART = 4,
             MEDIA_PLAY = 5, KEY_PLAY = 6, OPEN_URI = 7, REPAIR_MUTE = 8, UNFREEZE = 9, IS_FROZEN = 10,
             MUTED_STATE = 11, FRONT = 12, HOME = 13, OPEN_APP = 14, RESET_AUDIO = 15,
             ALLOW_AND_UNFREEZE = 16, GRANT_SECURE_SETTINGS = 17, USB_DEBUGGING_STATE = 18, USB_DEBUGGING_ON = 19,
             SPOTIFY_HOLDERS = 20, MUTE_SPOTIFY = 21, UNMUTE_SPOTIFY = 22, RESUMED_APP = 23,
             START_ALLOW = 24, SPOTIFY_FGS = 25, SPOTIFY_BG_STATE = 26, SPOTIFY_BG_ALLOW = 27,
-            HUSH_USERS = 28, REMOVE_HUSH_COPY = 29, UNMUTE_MUSIC = 30, SPOTIFY_EXIT = 31;
+            HUSH_USERS = 28, REMOVE_HUSH_COPY = 29, UNMUTE_MUSIC = 30, SPOTIFY_EXIT = 31,
+            MIUI_AUTOSTART = 32, MIUI_AUTOSTART_STATE = 33, SPOTIFY_HERE = 34;
+
+    // Printed by `input` when the phone does not let the shell press keys: Xiaomi phones refuse it
+    // unless "USB debugging (Security settings)" is on in Developer options.
+    public static final String INPUT_REFUSED = "INJECT_EVENTS";
+    // Xiaomi's own "Autostart" switch (MIUI / HyperOS app-op 10008): without it the system may not
+    // start the app again for a service it needs, Hush's ad watcher included.
+    static final String MIUI_AUTOSTART_OP = "10008";
 
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9_.$/]{1,255}");
     private static final Pattern PLAYABLE = Pattern.compile("spotify:(playlist|album):[A-Za-z0-9]{1,64}");
@@ -62,7 +70,8 @@ public final class Commands {
             case OPEN_AND_ALLOW: return ALLOWLIST + "; " + open(a) + "; " + ALLOW;
             case RESTART: return STOP + "; " + ALLOWLIST + "; " + open(a) + "; " + ALLOW;
             case MEDIA_PLAY: return "cmd media_session dispatch play";
-            case KEY_PLAY: return "input keyevent 126";
+            // stderr included, so a refusal (INPUT_REFUSED) can be seen.
+            case KEY_PLAY: return "input keyevent 126 2>&1";
             case OPEN_URI:
                 return "am start -a android.intent.action.VIEW -p " + arg(SPOTIFY) + " -d " + spotifyUri(a) + " >/dev/null 2>&1";
             case REPAIR_MUTE: return ALLOW + "; cmd media_session dispatch pause; sleep 0.3; cmd media_session dispatch play";
@@ -114,7 +123,17 @@ public final class Commands {
             // Turns the music volume back on the way the volume keys do (system-level), only if it is
             // muted: the mute key toggles, so it must never be pressed on an unmuted stream.
             case UNMUTE_MUSIC:
-                return "dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164";
+                return "dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164 2>&1";
+            // Allows Xiaomi's Autostart for one app (Hush or Spotify only, see Actions) and prints the
+            // result ("MIUIOP(10008): allow; ..."). Other phones print an error and nothing changes.
+            case MIUI_AUTOSTART:
+                return "appops set " + arg(a) + " " + MIUI_AUTOSTART_OP + " allow 2>&1; appops get " + arg(a) + " " + MIUI_AUTOSTART_OP + " 2>&1";
+            case MIUI_AUTOSTART_STATE: return "appops get " + arg(a) + " " + MIUI_AUTOSTART_OP + " 2>&1";
+            // How many of Spotify's players are sounding on this phone, matched by Spotify's app id
+            // (all its processes: an ad can be played by another one than the music).
+            case SPOTIFY_HERE:
+                return "U=$(cmd package list packages -U " + arg(SPOTIFY) + " | grep -oE 'uid:[0-9]+' | head -1 | cut -d: -f2);"
+                        + " [ -n \"$U\" ] && dumpsys audio | grep -E \"u/pid:$U/\" | grep -c 'state:started'";
             // Removes Hush from one other Android user only (an app-clone space it was copied into).
             case REMOVE_HUSH_COPY: {
                 String[] p = a == null ? new String[0] : a.split("/", 2);

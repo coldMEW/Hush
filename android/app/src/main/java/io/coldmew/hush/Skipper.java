@@ -48,10 +48,13 @@ final class Skipper {
     static volatile boolean debugForcePlaylistFix;
     // Debug builds only: skip the media-button start, to test the activity-start fallback.
     static volatile boolean debugNoButton;
+    // Debug builds only: the first resume reports Spotify's error state, to test the recovery.
+    static volatile boolean debugError;
     private static final String DEBUG_OTHER = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M";
     private static String debugPrev;
 
-    private enum Result { OK, AD, NO_SESSION, NOT_PLAYING }
+    // ERROR: Spotify stayed in its error state (see resume).
+    private enum Result { OK, AD, NO_SESSION, NOT_PLAYING, ERROR }
 
     private Skipper() {}
 
@@ -132,9 +135,14 @@ final class Skipper {
         for (int attempt = 1; attempt <= attempts; attempt++) {
             if (attempt > 1) old = tokens(c);
             boolean viaButton = attempt == 1 && button != null;
-            if (viaButton) {   // Spotify plays as soon as it starts here, so the allowlist and app-ops come first
-                Shell.run(Commands.START_ALLOW);
+            if (viaButton) {
+                // Play goes out at once, and the fresh allowlist entry and audio app-ops follow right
+                // after: they take about 0.1 s, while Spotify asks for its playback service about
+                // 0.3 s after the press. Done before the press they cost 0.1 to 0.2 s of silence.
+                // They cannot be left out: the entry set with the stop can be gone again by then
+                // (measured: the first service start was refused once without this renewal).
                 pressPlay(c, button);
+                Shell.run(Commands.START_ALLOW);
             } else if (attempt == 1) {   // the app-ops overlap Spotify's start here (~0.1 s)
                 if (spotifyInFront) Shell.run(Commands.START_ALLOW);
                 else Shell.run(Commands.OPEN_AND_ALLOW, spotifyActivity);
@@ -153,6 +161,16 @@ final class Skipper {
             if (!viaButton && !spotifyInFront && !car && !restoreAfter) restore(c, prev, prevTask);
             r = resume(c, old, 9000, t0);
             log(t0, "resume " + r);
+            if (r == Result.ERROR && !car && Commands.playable(context)) {
+                // Spotify came back in its error state and play does nothing there (reported on
+                // Xiaomi phones). Starting the remembered playlist or album through its link is a
+                // fresh start of playback that does not go through that state.
+                step(t0, "playlist link");
+                Shell.run(Commands.OPEN_URI, context);
+                if (!spotifyInFront && !restoreAfter) { sleep(800); restore(c, prev, prevTask); }
+                r = resume(c, old, 9000, t0);
+                log(t0, "after playlist link: resume " + r);
+            }
             if (restoreAfter && !spotifyInFront && !car && r == Result.OK) restore(c, prev, prevTask);
             if (r == Result.OK) {
                 musicAt = playingAt;
@@ -198,7 +216,7 @@ final class Skipper {
         } else {
             if (!test) lastFailAt = System.currentTimeMillis();
             String why = r == Result.AD ? "the ad came back after restarting" : r == Result.NO_SESSION
-                    ? "Spotify did not start" : "Spotify did not resume playback";
+                    ? "Spotify did not start" : r == Result.ERROR ? "Spotify reported an error" : "Spotify did not resume playback";
             if (!test) prefs.add(Prefs.FAILED, 1);
             Events.add(c, Events.FAIL, (test ? "Test restart failed: " : "Skip failed: ") + why + " (" + where + ") · steps: " + steps);
             Intent open = c.getPackageManager().getLaunchIntentForPackage(Hush.SPOTIFY);
@@ -216,7 +234,8 @@ final class Skipper {
     // connecting (it can take ~2 s); the next one the moment the session settles, then every 2 s.
     // PLAY is idempotent, so an extra press does no harm. Sets playingAt when music started.
     private static Result resume(Context c, Set<Object> old, long timeout, long t0) {
-        long start = SystemClock.elapsedRealtime(), nextKick = 0, playingSince = 0, goneSince = 0;
+        if (BuildConfig.DEBUG && debugError) { debugError = false; step(t0, "error (test)"); return Result.ERROR; }
+        long start = SystemClock.elapsedRealtime(), nextKick = 0, playingSince = 0, goneSince = 0, errorSince = 0;
         int kicks = 0, lastState = -1;
         boolean hadSession = false;
         while (SystemClock.elapsedRealtime() - start < timeout) {
@@ -230,6 +249,15 @@ final class Skipper {
             int st = ps == null ? PlaybackState.STATE_NONE : ps.getState();
             boolean changed = st != lastState;
             if (changed) { log(t0, "state " + st + " actions " + (ps == null ? 0 : ps.getActions())); lastState = st; }
+            // Spotify's error state, with its own message in the steps (for bug reports). Play does
+            // not get Spotify out of it, so after 3 s the caller tries another way.
+            if (st == PlaybackState.STATE_ERROR) {
+                if (errorSince == 0) {
+                    errorSince = now;
+                    CharSequence msg = ps.getErrorMessage();
+                    step(t0, "error" + (msg == null || msg.length() == 0 ? "" : " \"" + clip(msg.toString()) + "\""));
+                } else if (now - errorSince >= 3000) return Result.ERROR;
+            } else errorSince = 0;
             if (st == PlaybackState.STATE_PLAYING) {
                 if (AdWatcher.isAd(mc)) return Result.AD;
                 if (playingSince == 0) { playingSince = now; step(t0, "playing"); }
@@ -238,10 +266,14 @@ final class Skipper {
                 playingSince = 0;
                 boolean settled = st == PlaybackState.STATE_PAUSED || st == PlaybackState.STATE_STOPPED
                         || st == PlaybackState.STATE_ERROR || st == PlaybackState.STATE_NONE;
-                if (settled && changed && mc != null) step(t0, st == PlaybackState.STATE_PAUSED ? "ready" : "state " + st);
+                if (settled && changed && mc != null && st != PlaybackState.STATE_ERROR) step(t0, st == PlaybackState.STATE_PAUSED ? "ready" : "state " + st);
                 if (mc != null && (kicks == 0 || (settled && changed) || (now >= nextKick && (settled || now - start > 4000)))) {
                     log(t0, "kick " + kicks);
-                    kick(mc, kicks++);
+                    // The moment Spotify is ready, the press goes through the media-key dispatcher:
+                    // the route that works on every phone tried. (Measured on Xiaomi: the rotation
+                    // landed on the key event there, which Xiaomi refuses, and music came 2 s later.)
+                    kick(mc, settled && changed ? 0 : kicks);
+                    kicks++;
                     nextKick = now + 2000;
                 }
             }
@@ -269,13 +301,19 @@ final class Skipper {
         }
     }
 
+    // Route n % 3: media-key dispatcher, transport control, key event. The key event is left out once
+    // the phone refused it (Xiaomi without USB debugging (Security settings)).
     private static void kick(MediaController mc, int n) {
-        switch (n % 3) {
+        int route = n % 3;
+        if (route == 2 && Xiaomi.inputRefused) route = 0;
+        switch (route) {
             case 0: Shell.run(Commands.MEDIA_PLAY); break;
             case 1: mc.getTransportControls().play(); break;
-            default: Shell.run(Commands.KEY_PLAY); break;
+            default: Xiaomi.noteInput(Shell.run(Commands.KEY_PLAY)); break;
         }
     }
+
+    private static String clip(String s) { return s.length() > 80 ? s.substring(0, 80) + "…" : s; }
 
     // If the restarted Spotify plays a different playlist/album than before the ad, start the one
     // that was playing again. Spotify (Free) ignores the session's play-from-URI command, but its
@@ -296,16 +334,26 @@ final class Skipper {
         if (now == null || now.equals(want)) return "";
         if (!Commands.playable(want)) return ", Spotify switched playlist";
         Shell.run(Commands.OPEN_URI, want);
-        if (!spotifyInFront) { sleep(800); restore(c, prev, prevTask); }
-        long end = SystemClock.elapsedRealtime() + 8000;
+        // The link opens Spotify's screen, which a background-started Spotify first has to build.
+        // The app that was in front comes back as soon as Spotify has taken the new playlist, or
+        // after 3 s at the latest. Until 2.0.5 it came back after a fixed 0.8 s, before a slower
+        // phone had handled the link, and the switch was lost (measured on Xiaomi: never switched).
+        long start = SystemClock.elapsedRealtime(), end = start + 8000;
+        boolean restored = spotifyInFront, switched = false;
         while (SystemClock.elapsedRealtime() < end) {
-            sleep(250);
+            sleep(100);
             mc = latest(c, old);
             m = mc == null ? null : mc.getMetadata();
             PlaybackState ps = mc == null ? null : mc.getPlaybackState();
-            if (m != null && want.equals(m.getString(AdWatcher.KEY_CONTEXT))
-                    && ps != null && ps.getState() == PlaybackState.STATE_PLAYING) return ", playlist restored";
+            switched = m != null && want.equals(m.getString(AdWatcher.KEY_CONTEXT));
+            if (!restored && (switched || SystemClock.elapsedRealtime() - start >= 3000)) {
+                restore(c, prev, prevTask);
+                restored = true;
+                step(t0, switched ? "playlist taken" : "playlist link not taken yet");
+            }
+            if (switched && ps != null && ps.getState() == PlaybackState.STATE_PLAYING) return ", playlist restored";
         }
+        if (!restored) restore(c, prev, prevTask);
         return ", Spotify switched playlist";
     }
 

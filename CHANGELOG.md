@@ -4,6 +4,66 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.6] - 2026-11-07
+
+### Fixed
+- Xiaomi, Redmi and POCO: after Xiaomi's cleaner closed Hush (for example when you swiped it away
+  from recent apps), Hush stopped noticing ads, and opening Hush didn't fix it (#12). Hush now
+  reconnects its ad detection whenever it starts or is opened, and allows Xiaomi's **Autostart** for
+  itself and Spotify. Xiaomi forgets that Autostart at the next restart, so Hush also shows an
+  **Allow Autostart** row: switch Hush on there once and it comes back by itself after restarts.
+  While ad detection is reconnecting, the main screen says **Reconnecting…** instead of **Active**.
+- Playing on a speaker, TV or computer (Spotify Connect, Cast): a skip moved the music back to the
+  phone (#10). Hush no longer restarts Spotify while it plays on another device. It turns that
+  device's volume down for the ad when Android allows it. If Spotify plays the ad on the phone
+  instead, Hush mutes only Spotify there, so other apps keep their sound.
+- After Wireless debugging was switched back on, Hush could decide too early that its pairing was
+  gone and ask to pair again (#12). It now tries three times over about 5 seconds first.
+- If Hush itself was closed for more than about 30 seconds (by a cleaner, a crash or Force stop),
+  its helper gave up, and skipping could then only come back on Wi-Fi: on mobile data, ads were
+  muted until the next Wi-Fi (#12). The helper now waits for Hush and starts it again, so skipping
+  comes back by itself, without Wi-Fi.
+- When Hush started without Wi-Fi and its helper was gone, it said Wireless debugging was off and
+  to tap to turn it on, which cannot help without Wi-Fi, and Recent activity said nothing. It now
+  says that it needs Wi-Fi, resumes by itself when Wi-Fi is back, and logs it.
+- Some phones (Xiaomi) switch Wireless debugging off when Wi-Fi drops and leave it off when Wi-Fi
+  comes back, so skipping waited for a tap. If it was on before, Hush now turns it back on and
+  resumes by itself.
+- The playlist correction after a skip did not work on slower phones (seen on Xiaomi): Hush brought
+  back the app you were in before Spotify had taken the link. It now waits until Spotify has
+  switched (at most 3 seconds).
+- A speaker muted for an ad could stay at volume 0 if the music was moved off it during the ad. Its
+  volume is now given back the next time Spotify plays on it.
+- Xiaomi: music came back about 2 seconds later than on other phones, because one of the ways Hush
+  presses play is refused there. Hush now presses play the way that always works the moment Spotify
+  is ready (measured: 6.1 s down to 3.4 s), and stops using the refused one.
+- If Spotify comes back in an error state after a skip (#9), Hush now starts the playlist or album
+  you were playing through its link before trying again, and Recent activity shows Spotify's own
+  error message.
+- **Test ad skip** with Spotify closed did nothing; it now asks you to play something first.
+- With no internet at all (Wi-Fi off and no mobile data), a skipped ad left Spotify silent: a
+  restarted Spotify can't load the next song. Hush now mutes only Spotify for those ads, and the
+  music goes on from Spotify's cache. If the internet comes back during the ad break, Hush skips the
+  rest of it. Mobile data counts as internet, so ads are still skipped on it.
+- After Hush was force-stopped (App info or a cleaner app), its status notification with the
+  **Turn off** button stayed gone until the next ad. It now comes back as soon as Hush starts.
+- Just after Hush switched Wireless debugging on, a slow phone could report "Wireless debugging port
+  not found" although skipping started a moment later. Hush now looks a second time first.
+- When skipping was paused for another reason, the main screen said Wireless debugging was off even
+  when it was on.
+
+### Changed
+- Music comes back a little sooner after a skip: play is pressed right after Spotify is stopped
+  instead of after a few setup commands (0.1 to 0.2 s).
+- Xiaomi: setup explains where to find the pairing code notification (Xiaomi shows no pop-up for it),
+  the warning screen before notification access, and the battery setting to pick. **USB debugging
+  (Security settings)** is needed only once: with it on when the helper starts, Hush can switch
+  Wireless debugging and USB debugging by itself from then on, even after it is turned off again.
+  If USB debugging is off and Hush can't turn it on, the main screen asks for it.
+- A pairing code typed after pairing has timed out now says so instead of being ignored.
+- **Copy diagnostics** also shows whether ad detection is connected and, on Xiaomi, the Autostart
+  state.
+
 ## [2.0.5] - 2026-11-02
 
 ### Fixed

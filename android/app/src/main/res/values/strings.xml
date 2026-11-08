@@ -27,6 +27,7 @@
     <string name="st_dns">DNS filter</string>
     <string name="v_active">Active</string>
     <string name="v_no_access">No access</string>
+    <string name="v_reconnecting">Reconnecting…</string>
     <string name="v_skip">Skip</string>
     <string name="v_mute">Mute</string>
     <string name="v_mute_fallback">Mute (skipping not ready)</string>
@@ -80,6 +81,15 @@
     <string name="action_fix">Fix</string>
     <string name="setup_battery">Unrestricted battery</string>
     <string name="setup_battery_desc">Keeps Hush working while the phone is locked.</string>
+    <string name="setup_battery_desc_xiaomi">Keeps Hush working while the phone is locked. On the next screen pick No restrictions.</string>
+    <string name="setup_listener_desc_xiaomi">Lets Hush see when Spotify starts an ad. Hush doesn\'t read your notifications. Xiaomi shows a warning screen first: tick the box and tap OK when the countdown ends.</string>
+    <string name="test_needs_spotify">Play something in Spotify first, then test.</string>
+    <string name="setup_xiaomi_autostart">Allow Autostart</string>
+    <string name="setup_xiaomi_autostart_desc">Xiaomi stops Hush after a restart unless Autostart is on. Tap Open and switch Hush on in the list, once.</string>
+    <string name="setup_usb_debugging">Turn on USB debugging</string>
+    <string name="setup_usb_debugging_desc">In Developer options, turn on USB debugging. Without it, skipping stops when Wi-Fi drops and ads are muted until Wi-Fi is back.</string>
+    <string name="setup_xiaomi_security">Optional: restart by itself</string>
+    <string name="setup_xiaomi_security_desc">Turn on USB debugging (Security settings) in Developer options and Hush starts skipping by itself after a restart. Without it, turn on Wireless debugging once after each restart, and Hush resumes.</string>
     <string name="action_allow">Allow</string>
     <string name="action_open">Open</string>
     <string name="action_install">Get</string>
@@ -198,6 +208,7 @@
     <string name="setup_skip_wifi">Paused: skipping needs Wi-Fi to start again (no internet needed). Hush resumes by itself when Wi-Fi is back.</string>
     <string name="action_wifi">Wi-Fi</string>
     <string name="setup_skip_resume">Paused because Wireless debugging is off. Tap Resume.</string>
+    <string name="setup_skip_resume_on">Paused. Tap Resume to start skipping again.</string>
     <string name="action_resume">Resume</string>
     <string name="v_skip_shizuku">Skip (Shizuku)</string>
 
@@ -210,6 +221,7 @@
     <string name="hs_dev_desc">In About phone, tap Build number seven times.</string>
     <string name="hs_pair">Pair Hush</string>
     <string name="hs_pair_desc">Tap Pair. In Wireless debugging, turn it on and tap Pair device with pairing code. Stay on that screen: Hush\'s notification pops up there, type the code into it.</string>
+    <string name="hs_pair_desc_xiaomi">Tap Pair. In Wireless debugging, turn it on and tap Pair device with pairing code. Stay on that screen, pull down the notification shade, open Hush\'s notification with its arrow and type the code into it.</string>
     <string name="hs_pair_wifi">Connect to Wi-Fi first. Wireless debugging works only on Wi-Fi (no internet needed).</string>
     <string name="hs_pair_searching">Waiting for the code. In Wireless debugging, tap Pair device with pairing code.</string>
     <string name="hs_pair_found">Go back to Settings and keep the pairing code open. Type the code into Hush\'s notification there (pull down from the top if it\'s gone).</string>
@@ -252,6 +264,8 @@
     <string name="pair_starting_text">Starting Hush\'s helper…</string>
     <string name="pair_wrong_title">That code didn\'t work</string>
     <string name="pair_wrong_text">Check the code in Settings and try again.</string>
+    <string name="pair_expired_title">Pairing timed out</string>
+    <string name="pair_expired_text">Hush waits about three minutes for the code. Tap here, tap Pair, then type the new code shown in Settings.</string>
     <string name="pair_failed_title">Pairing didn\'t finish</string>
     <string name="pair_failed_text">Keep the pairing code open in Settings and try again.</string>
     <string name="pair_done_title">Skipping is ready</string>

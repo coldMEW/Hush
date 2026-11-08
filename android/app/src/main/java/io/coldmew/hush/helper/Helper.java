@@ -46,6 +46,25 @@ public final class Helper {
         Looper.loop();
     }
 
+    // Set by handOver when Hush answered but refused the binder.
+    private static volatile boolean rejected;
+
+    // Hush is gone (killed by a cleaner, crashed, force-stopped). The hand-over call itself starts
+    // Hush again, so the helper keeps offering itself: every second for 30 s, then every 30 s. Until
+    // 2.0.5 it gave up after 30 s, and skipping could then come back only on Wi-Fi (a new helper can
+    // be started only through Wireless debugging), e.g. after hours on mobile data. A sleeping thread
+    // costs nothing. It leaves when Hush is uninstalled or updated (its APK is gone), or when Hush
+    // refuses it because a newer helper took its place.
+    private static void waitForHush() {
+        for (int i = 0; ; i++) {
+            if (apk != null && !new File(apk).exists()) System.exit(0);
+            rejected = false;
+            if (handOver(1)) return;
+            if (rejected) System.exit(0);
+            SystemClock.sleep(i < 30 ? 1000 : 30_000);
+        }
+    }
+
     // Sends the binder to Hush's provider; retries a few times (Hush may be starting).
     private static boolean handOver(int tries) {
         for (int i = 0; i < tries; i++) {
@@ -62,12 +81,13 @@ public final class Helper {
                     hush.linkToDeath(() -> new Thread(() -> {
                         // Hush was updated: its new version starts its own helper.
                         if (apk != null && !new File(apk).exists()) System.exit(0);
-                        SystemClock.sleep(1000);
-                        if (apk != null && !new File(apk).exists()) System.exit(0);
-                        if (!handOver(30)) System.exit(0);
+                        waitForHush();
                     }, "hush-helper-rebind").start(), 0);
                     return true;
                 }
+                // Hush's provider answered and refused this binder (HelperProvider returns null for a
+                // token Hush no longer holds): a newer helper has taken this one's place.
+                rejected = true;
             } catch (Throwable t) {
                 System.err.println("hush_helper: hand-over failed: " + t);
             }

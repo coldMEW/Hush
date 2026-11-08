@@ -177,6 +177,9 @@ final class HelperControl {
         if (!wasOn && !(mayEnable && setDebugging(c, true))) { lastError = "Wireless debugging is off"; return Result.DEBUGGING_OFF; }
         turnedOn = !wasOn;
         int port = AdbMdns.find(c, AdbMdns.TLS_CONNECT, wasOn ? 4000 : 10000);
+        // Just switched on, Wireless debugging can take longer than 10 s to announce its port (seen
+        // on Xiaomi): one more look before calling the start failed.
+        if (port <= 0 && !wasOn && debuggingOn(c)) port = AdbMdns.find(c, AdbMdns.TLS_CONNECT, 10000);
         if (port <= 0) {
             lastError = "Wireless debugging port not found";
             return debuggingOn(c) ? Result.FAILED : Result.DEBUGGING_OFF;
@@ -190,9 +193,16 @@ final class HelperControl {
                 while (!HushHelper.ready() && SystemClock.elapsedRealtime() < end) SystemClock.sleep(50);
                 break;
             } catch (AdbConnection.NotPairedException e) {
-                // Right after Wireless debugging is switched on, adbd can drop the first connection
-                // while it starts up. Only a second refusal means the pairing is really gone.
-                if (attempt < 2) { SystemClock.sleep(1500); continue; }
+                // Right after Wireless debugging is switched on, adbd can drop the first connections
+                // while it starts up, and the port found first can be the one from before. Marking
+                // the pairing as lost sends the user through pairing again (issue #12), so it takes
+                // three refusals over about 5 s, with the port looked up again each time.
+                if (attempt < 3) {
+                    SystemClock.sleep(1500L * attempt);
+                    int again = AdbMdns.find(c, AdbMdns.TLS_CONNECT, 3000);
+                    if (again > 0) port = again;
+                    continue;
+                }
                 new Prefs(c).paired(false);
                 lastError = "not paired";
                 return Result.NOT_PAIRED;
@@ -203,6 +213,9 @@ final class HelperControl {
         }
         if (!HushHelper.ready()) { lastError = "helper did not connect"; return Result.FAILED; }
         new Prefs(c).paired(true);
+        // The user's own setting at this start (not one Hush switched on just for it).
+        if (!turnedOn) new Prefs(c).debuggingWasOn(true);
+        else if (!new Prefs(c).autoRestart()) new Prefs(c).debuggingWasOn(true);
         lastError = "";
         return Result.READY;
     }
@@ -279,6 +292,8 @@ final class HelperControl {
             }
             p.checkCopies(false);
             SpotifyBackground.ensureAllowed(c);   // before the first skip, not after it
+            Xiaomi.allowAutostart(c);
+            AdWatcher.ensureConnected(c);
         });
     }
 
@@ -300,7 +315,14 @@ final class HelperControl {
         if (!"0".equals(state)) return "1".equals(state);
         Prefs p = new Prefs(c);
         if (!p.enabled() || !Prefs.MODE_RESTART.equals(p.mode())) return false;
-        Shell.run(Commands.USB_DEBUGGING_ON);
+        // Hush's own permission first (the one it switches Wireless debugging with): Xiaomi refuses
+        // the helper's command unless "USB debugging (Security settings)" is on, but keeps letting
+        // Hush use a permission granted while it was on (measured on HyperOS 2).
+        if (canToggleDebugging(c)) {
+            try { Settings.Global.putInt(c.getContentResolver(), Settings.Global.ADB_ENABLED, 1); }
+            catch (SecurityException ignored) {}
+        }
+        if (!"1".equals(Shell.run(Commands.USB_DEBUGGING_STATE).trim())) Shell.run(Commands.USB_DEBUGGING_ON);
         if (!"1".equals(Shell.run(Commands.USB_DEBUGGING_STATE).trim())) return false;
         Events.add(c, Events.INFO, "Turned on USB debugging, so skipping keeps working when Wi-Fi is off");
         return true;
@@ -376,14 +398,24 @@ final class HelperControl {
             return;
         }
         p.updating(false);
-        if (p.autoRestart() && canToggleDebugging(c)) {
-            if (onWifi(c)) {
-                booting = true;
-                worker.execute(() -> { try { autoStart(c); } finally { booting = false; } });
-            } else waitForWifi(c);
+        // Without Wi-Fi the helper cannot start (Android runs Wireless debugging only on Wi-Fi), so
+        // that is the reason to give, not "Wireless debugging is off": tapping could not help then.
+        // Hush resumes by itself when Wi-Fi is back. Said in Recent activity too, as start() does.
+        if (!onWifi(c)) {
+            if (!"no Wi-Fi".equals(lastLogged))   // once per reason, as in start()
+                Events.add(c, Events.INFO, "Skipping helper didn't start: no Wi-Fi (it starts only on Wi-Fi; ads are muted until Wi-Fi is back)");
+            lastLogged = "no Wi-Fi";
+            if (p.autoRestart() && canToggleDebugging(c)) waitForWifi(c);
+            else notifyStopped(c, Result.NO_WIFI);   // also waits for Wi-Fi
+        } else if (p.autoRestart() && canToggleDebugging(c)) {
+            booting = true;
+            worker.execute(() -> { try { autoStart(c); } finally { booting = false; } });
         } else if (debuggingOn(c)) {
             ensure(c, false, true);
         } else {
+            if (!"Wireless debugging is off".equals(lastLogged))
+                Events.add(c, Events.INFO, "Skipping helper didn't start: Wireless debugging is off");
+            lastLogged = "Wireless debugging is off";
             notifyStopped(c, Result.DEBUGGING_OFF);
         }
     }
@@ -447,7 +479,9 @@ final class HelperControl {
         if (p.autoRestart() && canToggleDebugging(c)) { autoStart(c); }
         else {
             SystemClock.sleep(3000);   // Wireless debugging, if on, needs a moment on the new network
-            Result r = start(c, false);
+            // Some phones (Xiaomi) switch Wireless debugging off when Wi-Fi drops and leave it off.
+            // If it was on when the helper last started (the user's setting), Hush puts it back.
+            Result r = start(c, p.debuggingWasOn() && canToggleDebugging(c));
             if (r != Result.READY) notifyStopped(c, r);
         }
         if (HushHelper.ready()) Events.add(c, Events.INFO, "Wi-Fi is back: skipping resumed");

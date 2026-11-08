@@ -142,6 +142,9 @@ final class Actions {
                 if (action == Commands.GRANT_SECURE_SETTINGS || action == Commands.HUSH_USERS) arg = hushPackage;
                 // Only Hush itself, and never from the user Hush runs in.
                 if (action == Commands.REMOVE_HUSH_COPY) arg = otherUser(arg) + "/" + hushPackage;
+                // Xiaomi's Autostart only for Spotify or Hush itself; anything else means Hush.
+                if ((action == Commands.MIUI_AUTOSTART || action == Commands.MIUI_AUTOSTART_STATE)
+                        && !Commands.SPOTIFY.equals(arg)) arg = hushPackage;
                 String cmd = Commands.build(action, arg);   // throws for anything not in the table
                 reply.writeInt(HelperProtocol.OK);
                 reply.writeString(action == Commands.STOP_READ_FRONT ? stopReadFront(arg, cmd) : Exec.sh(cmd));

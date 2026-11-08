@@ -47,7 +47,7 @@ public class CommandsTest {
         assertEquals(ALLOWLIST + "; " + ALLOW, Commands.build(Commands.START_ALLOW, "x; reboot"));
         assertEquals(STOP + "; " + ALLOWLIST + "; " + OPEN + "; " + ALLOW, Commands.build(Commands.RESTART, SPOTIFY_MAIN));
         assertEquals("cmd media_session dispatch play", Commands.build(Commands.MEDIA_PLAY, null));
-        assertEquals("input keyevent 126", Commands.build(Commands.KEY_PLAY, null));
+        assertEquals("input keyevent 126 2>&1", Commands.build(Commands.KEY_PLAY, null));
         assertEquals(ALLOW + "; cmd media_session dispatch pause; sleep 0.3; cmd media_session dispatch play",
                 Commands.build(Commands.REPAIR_MUTE, null));
     }
@@ -119,7 +119,7 @@ public class CommandsTest {
 
     // The mute key toggles: it may only be pressed while the music stream is muted.
     @Test public void unmuteMusicOnlyWhenMuted() {
-        assertEquals("dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164",
+        assertEquals("dumpsys audio | grep -m1 -A1 '^- STREAM_MUSIC' | grep -q 'Muted: true' && input keyevent 164 2>&1",
                 Commands.build(Commands.UNMUTE_MUSIC, "x; reboot"));
     }
 
@@ -133,6 +133,44 @@ public class CommandsTest {
     @Test(expected = IllegalArgumentException.class) public void hostileCopyPackage() { Commands.build(Commands.REMOVE_HUSH_COPY, "95/x y"); }
     @Test(expected = IllegalArgumentException.class) public void copyNeedsUser() { Commands.build(Commands.REMOVE_HUSH_COPY, "io.coldmew.hush"); }
     @Test(expected = IllegalArgumentException.class) public void hostileHushUsers() { Commands.build(Commands.HUSH_USERS, "$(id)"); }
+    // Xiaomi's Autostart switch: set and read for one quoted package only (the helper allows only
+    // Hush and Spotify, see Actions).
+    @Test public void miuiAutostartCommands() {
+        assertEquals("appops set 'com.spotify.music' 10008 allow 2>&1; appops get 'com.spotify.music' 10008 2>&1",
+                Commands.build(Commands.MIUI_AUTOSTART, "com.spotify.music"));
+        assertEquals("appops get 'io.coldmew.hush' 10008 2>&1", Commands.build(Commands.MIUI_AUTOSTART_STATE, "io.coldmew.hush"));
+    }
+
+    // Spotify's players on this phone, by Spotify's app id; takes no argument (any is ignored).
+    @Test public void spotifyHere() {
+        String cmd = Commands.build(Commands.SPOTIFY_HERE, null);
+        assertEquals(cmd, Commands.build(Commands.SPOTIFY_HERE, "$(reboot)"));
+        assertTrue(cmd.contains("cmd package list packages -U 'com.spotify.music'"));
+        assertTrue(cmd.endsWith("grep -c 'state:started'"));
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void hostileAutostart() { Commands.build(Commands.MIUI_AUTOSTART, "x; reboot"); }
+    @Test(expected = IllegalArgumentException.class) public void hostileAutostartState() { Commands.build(Commands.MIUI_AUTOSTART_STATE, "$(id)"); }
+    @Test(expected = IllegalArgumentException.class) public void autostartNeedsPackage() { Commands.build(Commands.MIUI_AUTOSTART, null); }
+
+    // Real answers of `appops get <pkg> 10008` on HyperOS 2, and of a phone without the op.
+    @Test public void miuiAutostartState() {
+        assertTrue(Xiaomi.allowed("MIUIOP(10008): allow; time=+19m30s539ms ago; rejectTime=+2m28s703ms ago"));
+        assertFalse(Xiaomi.allowed("MIUIOP(10008): ignore; time=+19m30s478ms ago; rejectTime=+2m28s642ms ago"));
+        assertFalse(Xiaomi.allowed("Error: Unknown operation string: 10008"));
+        assertFalse(Xiaomi.allowed(""));
+        assertFalse(Xiaomi.allowed(null));
+    }
+
+    @Test public void inputRefusalIsNoticed() {
+        Xiaomi.inputRefused = false;
+        Xiaomi.noteInput("");
+        assertFalse(Xiaomi.inputRefused);
+        Xiaomi.noteInput("java.lang.SecurityException: Injecting input events requires the caller (or the source of the instrumentation, if any) to have the INJECT_EVENTS permission.");
+        assertTrue(Xiaomi.inputRefused);
+        Xiaomi.inputRefused = false;
+    }
+
     @Test(expected = IllegalArgumentException.class) public void unknownAction() { Commands.build(999, null); }
     @Test(expected = IllegalArgumentException.class) public void hostileComponent() { Commands.build(Commands.OPEN_APP, "x;reboot"); }
     @Test(expected = IllegalArgumentException.class) public void hostileUri() { Commands.build(Commands.OPEN_URI, "spotify:album:x;id"); }
