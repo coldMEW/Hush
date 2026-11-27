@@ -4,6 +4,14 @@ All notable changes to Hush are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- A **Hush** tile for Quick Settings turns Hush on and off from the notification shade. When Hush
+  needs something first (VPN permission for the DNS filter, notification access, or the skipping
+  setup), the tile opens Hush, which asks for it and turns on, as the power button does. On the
+  lock screen it asks to unlock first. A long press on the tile opens Hush.
+
 ## [2.0.7] - 2026-11-08
 
 ### Fixed
