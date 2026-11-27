@@ -147,6 +147,8 @@ public class MainActivity extends Activity {
         findViewById(R.id.events_clear).setOnClickListener(v -> Events.clear(this));
 
         if (getIntent().getBooleanExtra(Updater.EXTRA_UPDATE, false)) startUpdate();   // "Update" in the notification
+        // The Quick Settings tile could not turn Hush on by itself (not when the screen is recreated).
+        if (b == null && getIntent().getBooleanExtra(QuickTile.EXTRA_TURN_ON, false)) turnOn();
 
         try {
             Shizuku.addBinderReceivedListenerSticky(binderUp);
@@ -158,6 +160,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         if (i.getBooleanExtra(Updater.EXTRA_UPDATE, false)) startUpdate();
+        if (i.getBooleanExtra(QuickTile.EXTRA_TURN_ON, false)) turnOn();
     }
 
     // Update to the latest release: Hush checks, downloads and verifies it, then installs it
